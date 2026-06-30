@@ -14,13 +14,17 @@ services:
     container_name: commonplace-falkordb
     env_file: [.env]
     environment:
-      - REDIS_ARGS=--requirepass ${FALKORDB_PASSWORD}   # auth (FalkorDB's documented mechanism)
+      # --appendonly yes = AOF on (durable to ~1s); --requirepass = auth.
+      - REDIS_ARGS=--requirepass ${FALKORDB_PASSWORD} --appendonly yes
       - BROWSER=${BROWSER:-1}                            # browser UI on :3000
     ports:
       - "127.0.0.1:6379:6379"   # admin/backup on the host ONLY — not tailnet, not public
       - "3000:3000"             # FalkorDB browser UI (reachable via MagicDNS over the tailnet)
     volumes:
-      - falkordb_data:/data     # FalkorDB persists RDB/AOF here
+      # Mount the volume where FalkorDB actually writes (its `dir`). Mounting at
+      # /data instead silently put RDB/AOF on the ephemeral overlay fs, so data
+      # was lost on every container recreate.
+      - falkordb_data:/var/lib/falkordb/data
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a \"$$FALKORDB_PASSWORD\" ping | grep -q PONG"]
       interval: 10s

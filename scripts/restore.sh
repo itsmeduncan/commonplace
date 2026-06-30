@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
-# restore.sh — restore a FalkorDB dump produced by backup.sh.
-# Run on the host. This REPLACES the live data with the dump's contents.
-# Usage:
-#   ./scripts/restore.sh ./backups/dump-2026-06-30-030000.rdb
+# restore.sh — restore a FalkorDB data-dir tarball made by backup.sh.
+# This REPLACES the live data (RDB + AOF) with the archive's contents.
+# Run on the host. Usage:
+#   ./scripts/restore.sh ./backups/falkordb-2026-06-30-030000.tar.gz
 set -euo pipefail
 
-DUMP="${1:?Usage: restore.sh <path-to-dump.rdb>}"
-[ -f "$DUMP" ] || { echo "No such dump: $DUMP" >&2; exit 1; }
-CONTAINER="${FALKORDB_CONTAINER:-commonplace-falkordb}"
+TARBALL="${1:?Usage: restore.sh <path-to-falkordb-*.tar.gz>}"
+[ -f "$TARBALL" ] || { echo "No such backup: $TARBALL" >&2; exit 1; }
+VOLUME="${FALKORDB_VOLUME:-commonplace_falkordb_data}"
 
-echo "[restore] This will overwrite the live graphs with: $DUMP"
+echo "[restore] This will overwrite the live graphs from: $TARBALL"
 printf '[restore] Type "yes" to continue: '
 read -r confirm
 [ "$confirm" = "yes" ] || { echo "[restore] aborted."; exit 1; }
 
 echo "[restore] stopping falkordb…"
 docker compose stop falkordb
-echo "[restore] copying dump into the data volume…"
-docker compose cp "$DUMP" "falkordb:/data/dump.rdb"
+
+# The container is stopped, so replace the volume contents via a throwaway helper
+# that mounts the named volume. Clears the dir first, then unpacks the archive.
+echo "[restore] replacing volume $VOLUME…"
+docker run --rm -i -v "$VOLUME":/restore alpine sh -c \
+  'rm -rf /restore/..?* /restore/.[!.]* /restore/* 2>/dev/null; tar -xzf - -C /restore' < "$TARBALL"
+
 echo "[restore] starting falkordb…"
 docker compose start falkordb
 echo "[restore] done. Verify with: ./scripts/graph_stats.sh"
