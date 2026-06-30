@@ -84,6 +84,9 @@ These trip up every edit — full explanations are in README §Gotchas:
 
 ## Commands (run on the host, from the repo directory, e.g. `~/commonplace`)
 
+Redeploy is wrapped by `scripts/commonplace update` (pull → `--build` → `--force-recreate` the
+config-sensitive services; `--reset` hard-resets to origin/main after a force-push). Raw compose:
+
 ```bash
 docker compose up -d                              # bring the stack up (after .env is filled)
 docker compose ps                                 # status / health
