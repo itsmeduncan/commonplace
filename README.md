@@ -141,9 +141,10 @@ docker compose ps        # all services should report healthy
 
 Then point a client at the two endpoints — see [Client configuration](#client-configuration).
 
-> **Local-only?** If you don't want the hosted tier, remove the `mcp-personal` service from
-> `docker-compose.yml` (or just don't add it as a client). The `client` tier runs without any
-> Anthropic key.
+> **Local-only?** The personal tier defaults to hosted Haiku but is switchable. To run it entirely
+> on your GPU (like the client tier, no Anthropic key needed), set in `.env`:
+> `PERSONAL_LLM_PROVIDER=openai`, `PERSONAL_LLM_MODEL=mistral:7b-instruct-q4_0`, and
+> `PERSONAL_SEMAPHORE_LIMIT=1`. You trade graph quality for full locality.
 
 > **Upgrading from a pre-gateway deploy?** Add `PERSONAL_TOKEN` / `CLIENT_TOKEN` to `.env`, then
 > `docker compose up -d --build --force-recreate` (the MCP tiers move behind the gateway and the
