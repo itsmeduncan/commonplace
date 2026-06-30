@@ -1,64 +1,65 @@
 # commonplace — hardening & maturity roadmap
 
-This tracks the path from "a memory store exists" to "agents reflexively leverage it, safely."
-It's sequenced by dependency and leverage. Phase 1 is implementable purely in this repo; later
-phases need an image patch, a new service, or runtime/GPU work, so they're called out honestly
-rather than half-shipped.
+The path from "a memory store exists" to "agents reflexively leverage it, safely." Sequenced by
+dependency and leverage. Checked items have shipped.
 
-## Phase 1 — Foundation (this repo, no new services)
+## Phase 1 — Foundation (config + docs)
 
-- [x] **Domain ontology** per tier (`graphiti.entity_types` in `config/*.yaml`). The single biggest
-      lever: constrains extraction (helps the weak local model most) and enables typed
-      `search_nodes`. Verified against the server schema (`name` + `description`).
-- [x] **Agent memory protocol** (`docs/memory-protocol.md`) — when/how to read/write, tier safety,
-      cite-back. This is what converts capability into agent behavior.
-- [x] **Write observability** (`scripts/graph_stats.sh`) — node/edge/episode counts per tier as a
-      proxy for whether agents are actually capturing.
-- [x] **Backup/restore automation** (`scripts/backup.sh`, `scripts/restore.sh`) — scheduled,
-      testable, instead of ad-hoc `SAVE`.
-- [x] **Corpus ingestion** (`scripts/ingest_markdown.py`) — load an existing markdown corpus (notes
-      vault, docs) into a tier so the graph is useful on day one.
-- [x] **Retrieval eval skeleton** (`eval/`) — question → expected-facts, to catch regressions when
-      models/ontology/reranker change.
+- [x] **Domain ontology** per tier (`graphiti.entity_types`). Constrains extraction; the biggest
+      single lever, and it helps the weak local model most.
+- [x] **Agent memory protocol** (`docs/memory-protocol.md`) — read/write contract, tier safety,
+      cite-back.
+- [x] **Write observability** (`scripts/graph_stats.sh`) — node/edge/episode counts per tier.
+- [x] **Backup/restore** (`scripts/backup.sh`, `scripts/restore.sh`).
+- [x] **Corpus ingestion** (`scripts/ingest_markdown.py`).
+- [x] **Retrieval eval** (`eval/`).
 
-## Phase 2 — Make leverage measurable & precise (needs an image patch or a small proxy)
+## Phase 2 — Measurable & precise
 
-- [ ] **MCP access logging / metrics.** The upstream server logs no tool calls, so reads are
-      invisible. Add a thin logging reverse-proxy in front of `:8000`/`:8001` (or patch the server)
-      recording `{ts, tier, tool, client, latency, result_size}`. Answers "did Claude Code search
-      before answering, and how often?" per client. **Blocked on:** new service or image patch.
-- [ ] **Local cross-encoder reranker.** Search is hardcoded to `NODE_HYBRID_SEARCH_RRF`
-      (graphiti_mcp_server.py:451). A local reranker (e.g. `bge-reranker` via Ollama) would lift
-      top-K precision with zero egress and fits the "GPU does background work" model. **Blocked on:**
-      image patch to swap the search recipe + pulling a reranker model on the host.
-- [ ] **Token-budgeted retrieval.** `search_memory_facts` is count-based (`max_facts`), not
-      token-aware. A token-budget mode lets agents page memory deterministically. **Blocked on:**
-      image patch or a client-side wrapper.
+- [x] **Read-side metrics & access logging.** The `gateway` (Caddy) fronts both tiers with JSON
+      access logging (an audit trail) and a Prometheus endpoint (`:9180`, host-local). `scripts/
+    mcp_activity.sh` summarizes reads/writes per tier — finally answers "is Claude Code actually
+      searching before it answers?"
+- [x] **Token-budgeted retrieval (client-side).** `scripts/recall.py` over-fetches then trims to a
+      token budget. A _server-side_ token-budget mode is still open (would need an image patch).
+- [ ] **Local cross-encoder reranker.** Still deferred — and deliberately. Search is hardcoded to
+      `NODE_HYBRID_SEARCH_RRF` (graphiti_mcp_server.py:451) and the MCP config exposes no reranker
+      provider, so this needs an image patch. The clean options conflict with the project's tenets:
+      an LLM reranker (via Ollama) puts an LLM back in the query path (the README explicitly forbids
+      this); a BGE cross-encoder adds `sentence-transformers` + a model download and would rerank on
+      CPU (the MCP containers have no GPU passthrough; only host Ollama does). Worth doing, but only
+      with a benchmark to prove it beats RRF — tracked, not rushed.
 
-## Phase 3 — Safety & isolation hardening
+## Phase 3 — Safety & isolation
 
-- [ ] **Server-side tier guard.** Today cross-tier safety is convention only (see memory-protocol).
-      Enforce at the boundary: the personal endpoint should refuse content tagged confidential, ideally
-      via separate per-tier credentials. **Blocked on:** auth proxy / image patch.
-- [ ] **Per-client auth + audit log.** No authn today (tailnet = trust boundary). Revocable per-client
-      tokens (via `tailscale serve` mTLS or an auth proxy) + an audit trail of who read/wrote which
-      tier — important for the confidential tier. **Blocked on:** auth proxy.
-- [ ] **Pin the base image by digest.** `zepai/knowledge-graph-mcp:standalone` is a moving tag; CI
-      catches a break but a digest pin (+ Dependabot, already configured) makes upgrades deliberate.
-- [ ] **Secret rotation + queue backpressure.** Rotate `FALKORDB_PASSWORD`/`ANTHROPIC_API_KEY`;
-      ensure a write flood doesn't starve the GPU (`SEMAPHORE_LIMIT=1`).
+- [x] **Per-client auth.** Gateway requires `Authorization: Bearer <token>`; unauthenticated
+      requests get 401.
+- [x] **Tier isolation by auth.** Separate `PERSONAL_TOKEN` / `CLIENT_TOKEN`: a client holding only
+      the client token cannot reach the personal (hosted-extraction) endpoint at all. Stronger than
+      the convention-only rule in the memory protocol, without fragile payload inspection.
+- [x] **Audit log.** The gateway access log records who/when/which tier (JSON, in container logs).
+- [x] **Pin the base image by digest** (`Dockerfile`). Dependabot's docker ecosystem proposes bumps;
+      CI's build verifies the patch still applies.
+- [ ] **Payload-level tier guard.** Belt-and-suspenders over token isolation: reject confidential-
+      tagged content on the personal endpoint by inspecting `add_memory` bodies. Needs MCP-protocol
+      parsing in the proxy — deferred.
+- [ ] **Secret rotation + queue backpressure.** Rotating `FALKORDB_PASSWORD` / `ANTHROPIC_API_KEY` /
+      the bearer tokens is now a documented op; GPU backpressure (`SEMAPHORE_LIMIT=1`) is server-side
+      and still open.
 
 ## Phase 4 — Coherence & quality
 
-- [ ] **Per-agent / per-project identity.** `user_id` is hardcoded `mcp_user`; add per-agent identity
-      and `group_id` per project so writes are attributable and filterable.
-- [ ] **Contradiction surfacing & compaction.** Graphiti invalidates superseded facts; agents should
-      surface contradictions for confirmation and periodically compact old episodes into stable facts.
-- [ ] **Richer ontology (typed fields).** The config route supports only `name` + `description`. Typed
+- [x] **Per-project namespacing.** `add_memory` / ingestion accept `group_id`; the protocol now tells
+      agents to scope project memory with it.
+- [x] **Contradiction surfacing.** `scripts/contradictions.sh` lists facts the graph marked
+      superseded (`invalid_at`), so resolved contradictions are reviewable.
+- [ ] **Per-agent identity.** `user_id` is hardcoded `mcp_user`; attributing writes to a specific
+      agent needs a server change (the `add_memory` tool exposes no `user_id`).
+- [ ] **Episode compaction.** Periodically fold old episodes into stable facts.
+- [ ] **Richer ontology (typed fields).** The config route is `name` + `description` only; typed
       fields (like the built-in `Requirement.project_name`) need code-defined entity types in a patch.
 
 ## Notes
 
-"Blocked on: image patch" means it can't honestly ship as config alone — it needs a build-time patch
-to the upstream MCP server (the same mechanism as `patch_transport_security.py`) or a sidecar
-service. Those are deliberate, reviewable changes, not config tweaks, so they're their own PRs.
+"Needs an image patch" = a build-time patch to the upstream MCP server (same mechanism as
+`patch_transport_security.py`), so it's its own reviewable change, not a config tweak.

@@ -48,7 +48,7 @@ def chunk_markdown(text: str) -> list[str]:
     return chunks
 
 
-async def ingest(directory: Path, url: str, group_id: str | None, dry_run: bool) -> None:
+async def ingest(directory: Path, url: str, group_id: str | None, dry_run: bool, token: str | None) -> None:
     files = sorted(directory.rglob("*.md"))
     if not files:
         sys.exit(f"No .md files found under {directory}")
@@ -59,7 +59,8 @@ async def ingest(directory: Path, url: str, group_id: str | None, dry_run: bool)
         print(f"[dry-run] would create ~{total} episodes. No changes made.")
         return
 
-    async with streamablehttp_client(url) as (read, write, _):
+    headers = {"Authorization": f"Bearer {token}"} if token else None
+    async with streamablehttp_client(url, headers=headers) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
             sent = 0
@@ -87,9 +88,10 @@ def main() -> None:
     ap.add_argument("directory", type=Path, help="Directory of .md files to ingest (searched recursively)")
     ap.add_argument("--url", required=True, help="MCP endpoint, e.g. http://host:8000/mcp/ (trailing slash)")
     ap.add_argument("--group-id", default=None, help="Graph to target (defaults to the endpoint's own)")
+    ap.add_argument("--token", default=None, help="Bearer token for the gateway (per-tier)")
     ap.add_argument("--dry-run", action="store_true", help="Count episodes without sending anything")
     args = ap.parse_args()
-    asyncio.run(ingest(args.directory, args.url, args.group_id, args.dry_run))
+    asyncio.run(ingest(args.directory, args.url, args.group_id, args.dry_run, args.token))
 
 
 if __name__ == "__main__":

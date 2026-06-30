@@ -20,3 +20,7 @@ backups/
 
 # Local Claude Code / claude-agents toolkit state — not part of the deployable stack
 .claude/
+
+# Python bytecode (from local script runs)
+__pycache__/
+*.pyc
