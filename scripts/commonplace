@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# commonplace — operate the stack from the host.
+#
+# Install once (symlink onto PATH):
+#   ln -sf "$PWD/scripts/commonplace" ~/.local/bin/commonplace
+# then:
+#   commonplace update          # redeploy: pull latest, rebuild, recreate
+#   commonplace update --reset   # same, but hard-reset to origin/main (after a force-push)
+#   commonplace status           # show service health
+set -euo pipefail
+
+REPO="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+
+usage() {
+	cat <<'USAGE'
+commonplace — operate the stack
+
+  commonplace update [--reset]   Redeploy: sync the repo, rebuild the image, and
+                                 recreate the services so config/ontology changes
+                                 take effect. --reset hard-resets to origin/main
+                                 (use after the repo history was force-pushed).
+  commonplace status             docker compose ps + graph counts.
+  commonplace help               This message.
+
+Runs on the host, against the deployment in this repo. Your .env is never touched.
+USAGE
+}
+
+require_env() {
+	[ -f "$REPO/.env" ] || {
+		echo "error: $REPO/.env is missing. Copy .env.example to .env and fill it in." >&2
+		exit 1
+	}
+}
+
+cmd_update() {
+	local reset=0
+	[ "${1:-}" = "--reset" ] && reset=1
+	cd "$REPO"
+	require_env
+
+	echo "==> fetching latest"
+	git fetch --all --prune
+	if [ "$reset" -eq 1 ]; then
+		echo "==> hard-resetting to origin/main (local repo changes discarded; .env kept)"
+		git reset --hard origin/main
+	elif ! git pull --ff-only; then
+		echo "error: can't fast-forward (history diverged — likely a force-push)." >&2
+		echo "       re-run with:  commonplace update --reset" >&2
+		exit 1
+	fi
+
+	echo "==> rebuilding image + applying compose changes"
+	docker compose up -d --build
+
+	# config/*.yaml are bind-mounted, so content changes don't trigger a recreate
+	# on their own — force the config-sensitive services to pick them up. FalkorDB
+	# is left running so the graphs stay up.
+	echo "==> recreating config-sensitive services (ontology / Caddyfile changes)"
+	docker compose up -d --force-recreate mcp-personal mcp-client gateway
+
+	echo "==> status"
+	docker compose ps
+	echo "==> done."
+}
+
+cmd_status() {
+	cd "$REPO"
+	docker compose ps
+	if [ -x "$REPO/scripts/graph_stats.sh" ]; then
+		echo
+		"$REPO/scripts/graph_stats.sh" || true
+	fi
+}
+
+case "${1:-help}" in
+	update)
+		shift
+		cmd_update "${1:-}"
+		;;
+	status) cmd_status ;;
+	help | -h | --help) usage ;;
+	*)
+		echo "error: unknown command '$1'" >&2
+		usage
+		exit 1
+		;;
+esac

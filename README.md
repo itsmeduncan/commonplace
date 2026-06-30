@@ -214,6 +214,17 @@ older docs.
 
 Run on the host, from the repo directory (e.g. `~/commonplace`).
 
+**Redeploy in one command** — `scripts/commonplace` wraps the pull → rebuild → recreate flow
+(symlink it onto your `PATH`, e.g. `ln -sf "$PWD/scripts/commonplace" ~/.local/bin/commonplace`):
+
+```bash
+commonplace update           # sync repo, rebuild image, recreate config-sensitive services
+commonplace update --reset   # same, but hard-reset to origin/main (after a force-push)
+commonplace status           # service health + graph counts
+```
+
+The underlying compose commands, if you'd rather run them by hand:
+
 ```bash
 # Bring the stack up (after .env is filled in)
 docker compose up -d
@@ -403,6 +414,7 @@ commonplace/
 │   ├── personal.yaml            # instance A — Anthropic Haiku extraction + personal ontology
 │   └── client.yaml              # instance B — local Ollama extraction + confidential ontology
 ├── scripts/
+│   ├── commonplace              # operate CLI: `commonplace update` redeploys the stack
 │   ├── graph_stats.sh           # write counts per tier   · mcp_activity.sh  # read counts (gateway log)
 │   ├── recall.py                # token-budgeted recall    · contradictions.sh # superseded facts
 │   ├── backup.sh / restore.sh   # FalkorDB dump + restore
