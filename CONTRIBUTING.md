@@ -23,7 +23,7 @@ By participating you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## Validate locally before opening a PR
 
-These are exactly what CI runs, so running them first avoids a red PR:
+Steps 1–4 are what CI runs, so running them first avoids a red PR:
 
 ```bash
 # 1. The compose file renders (uses placeholder env from the example)
@@ -39,7 +39,14 @@ python3 -m py_compile patch_transport_security.py
 # 4. The image builds — this is the real test that patch_transport_security.py
 #    still applies cleanly to the upstream zepai/knowledge-graph-mcp:standalone image
 docker build -t commonplace-mcp:ci .
+
+# 5. If you touched the gateway, the Caddyfile is valid (not yet covered by CI)
+PERSONAL_TOKEN=x CLIENT_TOKEN=x docker run --rm -e PERSONAL_TOKEN -e CLIENT_TOKEN \
+  -v "$PWD/gateway/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy:2-alpine caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
 ```
+
+If you changed a shell script, `bash -n scripts/<name>` checks its syntax.
 
 ## Pull requests
 
@@ -56,6 +63,7 @@ docker build -t commonplace-mcp:ci .
 
 ## Deploying
 
-Maintainers deploy manually on the host (`git pull && docker compose up -d --build`). There is
+Maintainers deploy manually on the host (`commonplace update`, or
+`git pull && docker compose up -d --build --force-recreate` by hand). There is
 intentionally **no CD** — the deploy target is a private homelab, not something a public repo should
 reach into. Contributors don't need any deploy access.
