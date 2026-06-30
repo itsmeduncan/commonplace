@@ -1,0 +1,8 @@
+# Keep the build context tiny and never ship secrets to the build daemon.
+.git
+.env
+*.env
+!.env.example
+backups/
+.claude/
+*.md

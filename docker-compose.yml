@@ -1,0 +1,88 @@
+# commonplace — two-tier local knowledge graph
+# ONE FalkorDB + TWO Graphiti MCP instances (personal :8000, client-confidential :8001).
+# Runs on a single Linux host. Tailnet-only — see README.md for architecture, rationale, and gotchas.
+#
+# Secrets come from .env (gitignored). Per-instance differences (graph name, concurrency)
+# are set in `environment:` below; shared secrets are injected via `env_file: .env`.
+
+name: commonplace
+
+services:
+  # ---- Shared graph store: ONE FalkorDB holding TWO graphs ----
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: commonplace-falkordb
+    env_file: [.env]
+    environment:
+      - REDIS_ARGS=--requirepass ${FALKORDB_PASSWORD}   # auth (FalkorDB's documented mechanism)
+      - BROWSER=${BROWSER:-1}                            # browser UI on :3000
+    ports:
+      - "127.0.0.1:6379:6379"   # admin/backup on the host ONLY — not tailnet, not public
+      - "3000:3000"             # FalkorDB browser UI (reachable via MagicDNS over the tailnet)
+    volumes:
+      - falkordb_data:/data     # FalkorDB persists RDB/AOF here
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$FALKORDB_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # ---- PERSONAL tier: hosted Claude Haiku 4.5 extraction ----
+  mcp-personal:
+    build:
+      context: .
+    image: commonplace-mcp:local   # derived from zepai/knowledge-graph-mcp:standalone + anthropic SDK
+    container_name: commonplace-mcp-personal
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    env_file: [.env]            # ANTHROPIC_API_KEY, FALKORDB_PASSWORD, OLLAMA_API_URL
+    environment:
+      - FALKORDB_URI=redis://falkordb:6379
+      - FALKORDB_DATABASE=commonplace_personal   # <-- this instance's graph
+      - GRAPHITI_GROUP_ID=commonplace_personal
+      - SEMAPHORE_LIMIT=5                         # Haiku is hosted; modest concurrency is fine
+      - GRAPHITI_TELEMETRY_ENABLED=false
+      - CONFIG_PATH=/app/mcp/config/config.yaml
+      - OPENAI_API_KEY=ollama                # dummy: graphiti-core builds a default OpenAI reranker at init; search uses RRF so it's never called, but it must construct
+      - OPENAI_BASE_URL=${OLLAMA_API_URL}    # if the reranker were ever invoked, keep it on-box (Ollama) — never egress to OpenAI
+    extra_hosts:
+      - "host.docker.internal:host-gateway"       # so the container can reach Ollama on the host
+    volumes:
+      - ./config/personal.yaml:/app/mcp/config/config.yaml:ro
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  # ---- CLIENT-CONFIDENTIAL tier: LOCAL GPU extraction, never leaves the box ----
+  mcp-client:
+    build:
+      context: .
+    image: commonplace-mcp:local   # derived from zepai/knowledge-graph-mcp:standalone + anthropic SDK
+    container_name: commonplace-mcp-client
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    env_file: [.env]            # FALKORDB_PASSWORD, OLLAMA_API_URL (no Anthropic key needed)
+    environment:
+      - FALKORDB_URI=redis://falkordb:6379
+      - FALKORDB_DATABASE=commonplace_client      # <-- this instance's graph (same FalkorDB)
+      - GRAPHITI_GROUP_ID=commonplace_client
+      - SEMAPHORE_LIMIT=1                          # a single consumer GPU can't sustain concurrency
+      - GRAPHITI_TELEMETRY_ENABLED=false
+      - CONFIG_PATH=/app/mcp/config/config.yaml
+      - OPENAI_API_KEY=ollama                # dummy: graphiti-core builds a default OpenAI reranker at init; search uses RRF so it's never called, but it must construct
+      - OPENAI_BASE_URL=${OLLAMA_API_URL}    # if the reranker were ever invoked, keep it on-box (Ollama) — never egress to OpenAI
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config/client.yaml:/app/mcp/config/config.yaml:ro
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+
+volumes:
+  falkordb_data:
+    driver: local

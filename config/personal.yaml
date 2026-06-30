@@ -1,0 +1,43 @@
+# commonplace — PERSONAL tier (MCP instance A, host port 8000)
+#
+# Extraction : hosted Claude Haiku 4.5  (best graph quality, pennies per ingest; the host has internet)
+# Embedder   : Ollama nomic-embed-text (768-dim) — SHARED with the client tier, do not change
+# Graph      : commonplace_personal     (one of two graphs in the shared FalkorDB)
+#
+# Values like ${ANTHROPIC_API_KEY} are expanded from the container env (compose env_file: .env).
+
+server:
+  transport: "http"        # FastMCP serves at path /mcp/ (trailing slash; not configurable)
+  host: "0.0.0.0"
+  port: 8000               # container-internal; compose maps host:8000 -> container:8000
+
+llm:
+  provider: "anthropic"    # native Anthropic client (NOT the openai path)
+  model: "claude-haiku-4-5"
+  max_tokens: 4096
+  temperature: 0.0         # REQUIRED: Anthropic 400s on a null temperature; 0.0 = deterministic extraction
+  providers:
+    anthropic:
+      api_key: ${ANTHROPIC_API_KEY}
+      max_retries: 3
+
+embedder:
+  provider: "openai"       # OpenAI-compatible client pointed at Ollama (auto-uses generic client)
+  model: "nomic-embed-text"
+  dimensions: 768
+  providers:
+    openai:
+      api_key: "ollama"    # dummy; the client rejects an empty key
+      api_url: ${OLLAMA_API_URL:http://host.docker.internal:11434/v1}
+
+database:
+  provider: "falkordb"
+  providers:
+    falkordb:
+      uri: ${FALKORDB_URI:redis://falkordb:6379}
+      password: ${FALKORDB_PASSWORD:}
+      database: ${FALKORDB_DATABASE:commonplace_personal}   # <-- selects the graph
+
+graphiti:
+  group_id: ${GRAPHITI_GROUP_ID:commonplace_personal}
+  user_id: "mcp_user"

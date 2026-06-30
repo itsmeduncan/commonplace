@@ -1,0 +1,96 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+`commonplace` is **infrastructure only** — a Docker Compose stack, two MCP config files, a
+Dockerfile, and one build-time patch. There is no application source, no test suite, and no lint
+step. It deploys a self-hosted, two-tier [Graphiti](https://github.com/getzep/graphiti) knowledge
+graph that Claude Code and Pi use as long-term memory over a Tailscale tailnet.
+
+**Read `README.md` first** — it is the real documentation. It contains the architecture diagram, the
+endpoint/graph map, a 15-item "Gotchas" list, and client-config instructions. This file summarizes
+only the load-bearing facts and points back to it.
+
+## Deployment model (source of truth lives in two places)
+
+- The **repo** is the source of truth for config. Edit a clone → push → on the host
+  `git pull` → `docker compose up -d`.
+- **Runtime + secrets** live only on the **host** (a Linux server with Docker, Ollama, and an
+  optional consumer NVIDIA GPU) in the repo directory (e.g. `~/commonplace`). Other devices are
+  pure clients — they host nothing.
+- Secrets are in `.env` on the host only (gitignored; `.dockerignore` also excludes it from the
+  build context). `.env.example` is the template. Never commit real values.
+
+## Architecture invariants (don't break these)
+
+- **One FalkorDB, two graphs.** Both MCP instances share one FalkorDB; the graph is selected per
+  instance by `FALKORDB_DATABASE` (`commonplace_personal` vs `commonplace_client`). `group_id` does
+  **not** select the graph — it only namespaces nodes within one.
+- **Two MCP instances, one custom image.** `commonplace-mcp:local` is built locally from
+  `zepai/knowledge-graph-mcp:standalone` (see `Dockerfile`) — the upstream `:standalone` image lacks
+  the `anthropic` SDK and rejects remote Host headers, so the Dockerfile adds the SDK and runs
+  `patch_transport_security.py`. Use `:standalone`, never `:latest` (the latter bundles its own
+  FalkorDB and can't share one).
+- **personal tier** (`config/personal.yaml`, host `:8000`) extracts with hosted Anthropic
+  `claude-haiku-4-5`. **client tier** (`config/client.yaml`, host `:8001`) extracts with local
+  `mistral:7b-instruct-q4_0` on the GPU — confidential data never leaves the box. Concurrency differs
+  by design: `SEMAPHORE_LIMIT` 5 (personal) vs 1 (client, GPU-bound) — set in `docker-compose.yml`.
+- **Shared embedder.** Both tiers use Ollama `nomic-embed-text` (768-dim). Do **not** change the
+  embedder on only one tier — vectors from different embedders are not comparable.
+- **MCP path has a trailing slash: `/mcp/`** (FastMCP default, not configurable). FalkorDB UI is on
+  `:3000`; FalkorDB `:6379` binds to `127.0.0.1` only.
+- Ollama runs on the host, so each MCP service needs `extra_hosts: host.docker.internal:host-gateway`
+  and an `api_url` of `http://host.docker.internal:11434/v1`.
+
+## Config quirks that look like bugs but aren't
+
+These trip up every edit — full explanations are in README §Gotchas:
+
+- The Anthropic tier **requires an explicit numeric `llm.temperature`** (e.g. `0.0`); a null value
+  makes the API 400 and silently stalls all personal-tier ingestion.
+- Anthropic model id is the **bare alias `claude-haiku-4-5`** — `-latest` 404s on the Anthropic API.
+- To use Ollama, set `provider: "openai"` with a non-OpenAI `api_url` (the server auto-selects its
+  generic client). There is no `openai_generic` provider and no `small_model` setting.
+- Each tier needs a **dummy `OPENAI_API_KEY`** (set in compose) because graphiti-core builds a default
+  OpenAI reranker at init even though the search path (RRF) never calls it.
+- graphiti reads the OpenAI-compatible base URL from `OPENAI_API_URL`; the reranker reads
+  `OPENAI_BASE_URL`. Two different names for two different clients.
+
+## Commands (run on the host, from the repo directory, e.g. `~/commonplace`)
+
+```bash
+docker compose up -d                              # bring the stack up (after .env is filled)
+docker compose ps                                 # status / health
+docker compose logs -f mcp-personal               # or mcp-client, falkordb
+docker compose up -d --force-recreate mcp-client  # apply a config/*.yaml change to one instance
+docker compose up -d --build                      # rebuild after editing Dockerfile or the patch
+docker compose down                               # stop, KEEP data (falkordb_data volume)
+docker compose down -v                            # stop AND delete the graphs
+```
+
+Editing a `config/*.yaml` does not hot-reload — `--force-recreate` the affected instance. Editing the
+`Dockerfile` or `patch_transport_security.py` requires `--build`.
+
+Health check from a client (tailnet or LAN):
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://your-server.your-tailnet.ts.net:8000/mcp/   # expect 307
+```
+
+Backup/restore is via Redis `SAVE` + `docker compose cp` of `/data/dump.rdb` — see README §Backup.
+
+## Access / networking
+
+- MCP ports bind `0.0.0.0` on the host, reached over the tailnet at
+  `http://your-server.your-tailnet.ts.net:8000/mcp/` and `:8001/mcp/` (also LAN-reachable; **not**
+  public — no router port-forward).
+- The transport patch disables FastMCP's DNS-rebinding protection — safe here because the tailnet is
+  the trust boundary and clients are agents, not browsers. To tighten, set explicit `allowed_hosts`
+  (see the patch's docstring) instead of disabling.
+- **Host-networking caveat:** keep the host single-homed (one IPv4 on its primary interface). A
+  second address (e.g. a static IP plus a stray DHCP lease) makes Tailscale advertise two WireGuard
+  endpoints and the tunnel flaps, which black-holes TCP over MagicDNS while LAN and `tailscale ping`
+  still appear to work. On Ubuntu this usually comes from cloud-init re-enabling DHCP — disable its
+  network management (`/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`). See README §Networking.

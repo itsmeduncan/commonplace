@@ -1,0 +1,46 @@
+# commonplace — CLIENT-CONFIDENTIAL tier (MCP instance B, host port 8001)
+#
+# Extraction : LOCAL model on the host's GPU (mistral:7b-instruct-q4_0) — NEVER leaves the box
+# Embedder   : Ollama nomic-embed-text (768-dim) — SHARED with the personal tier, do not change
+# Graph      : commonplace_client       (one of two graphs in the shared FalkorDB)
+#
+# provider "openai" + a non-OpenAI api_url makes the server auto-select OpenAIGenericClient,
+# which avoids OpenAI's beta responses.parse() (unimplemented by Ollama) and uses json_schema
+# constrained decoding by default. SEMAPHORE_LIMIT=1 (set in compose) — a single consumer GPU
+# can't sustain concurrent extraction.
+
+server:
+  transport: "http"        # FastMCP serves at path /mcp/ (trailing slash; not configurable)
+  host: "0.0.0.0"
+  port: 8000               # container-internal; compose maps host:8001 -> container:8000
+
+llm:
+  provider: "openai"       # non-OpenAI api_url below -> OpenAIGenericClient (the generic path)
+  model: "mistral:7b-instruct-q4_0"
+  max_tokens: 4096
+  temperature: 0.0         # explicit (the generic client tolerates null, but keep both tiers consistent)
+  providers:
+    openai:
+      api_key: "ollama"    # dummy; the client rejects an empty key
+      api_url: ${OLLAMA_API_URL:http://host.docker.internal:11434/v1}
+
+embedder:
+  provider: "openai"
+  model: "nomic-embed-text"
+  dimensions: 768
+  providers:
+    openai:
+      api_key: "ollama"
+      api_url: ${OLLAMA_API_URL:http://host.docker.internal:11434/v1}
+
+database:
+  provider: "falkordb"
+  providers:
+    falkordb:
+      uri: ${FALKORDB_URI:redis://falkordb:6379}
+      password: ${FALKORDB_PASSWORD:}
+      database: ${FALKORDB_DATABASE:commonplace_client}   # <-- selects the graph
+
+graphiti:
+  group_id: ${GRAPHITI_GROUP_ID:commonplace_client}
+  user_id: "mcp_user"

@@ -1,0 +1,22 @@
+# >>> claude-agents managed (DO NOT EDIT THIS BLOCK) >>>
+.claude/.toolkit-last-seen-sha
+.claude/.toolkit-setup-done
+.claude/.claude-agents.conf
+# <<< claude-agents managed <<<
+
+# Secrets & host-local config — NEVER commit. The stack's secrets live only in .env on the host.
+.env
+*.env
+!.env.example
+
+# FalkorDB backups / dumps
+backups/
+*.rdb
+*.dump
+
+# OS / editor cruft
+.DS_Store
+*.swp
+
+# Local Claude Code / claude-agents toolkit state — not part of the deployable stack
+.claude/

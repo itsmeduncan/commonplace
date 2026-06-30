@@ -1,0 +1,45 @@
+name: CI
+
+# Validates the stack on every push to main and every PR.
+# There is no application test suite — this is infra, so CI checks that the
+# config is well-formed and that the custom MCP image still builds (which is
+# also the real test that patch_transport_security.py's anchors still match
+# the upstream zepai/knowledge-graph-mcp:standalone image).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # consider pinning to a commit SHA
+
+      - name: Validate docker-compose (placeholder env)
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+      - name: Parse MCP config YAML
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 -c "import yaml, glob; [yaml.safe_load(open(f)) for f in glob.glob('config/*.yaml')]"
+
+      - name: Syntax-check the transport patch
+        run: python3 -m py_compile patch_transport_security.py
+
+  build:
+    name: Build MCP image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # consider pinning to a commit SHA
+
+      # Builds commonplace-mcp:local end-to-end. Fails if the Anthropic SDK
+      # install breaks or if patch_transport_security.py can't find its anchor
+      # points in the current upstream image (it exits non-zero by design).
+      - name: docker build
+        run: docker build -t commonplace-mcp:ci .
