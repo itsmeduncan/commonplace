@@ -32,32 +32,41 @@ holding two separate graphs, so the two memories stay isolated but the infrastru
 
 ## Architecture
 
-```
-        Claude Code                       Pi
-         (client)                      (client)
-                │                              │
-                └──────────────┬───────────────┘
-                      Tailscale (MagicDNS, tailnet-only)
-                               │
-        ┌──────────────────────┴───────────────────────┐
-        │  your server  (Docker; everything below)      │
-        │                                               │
-        │  :8000/mcp/  mcp-personal ──┐                 │
-        │     LLM: Claude Haiku 4.5   │                 │
-        │     (hosted, ANTHROPIC key) │   ┌───────────┐ │
-        │     embed: nomic-embed-text─┼──▶│  FalkorDB │ │
-        │                             │   │  :6379    │ │
-        │  :8001/mcp/  mcp-client ────┤   │ ┌───────┐ │ │
-        │     LLM: mistral:7b (LOCAL) │   │ │persnl │ │ │
-        │     embed: nomic-embed-text─┘   │ │client │ │ │
-        │            │                    │ └───────┘ │ │
-        │            ▼ GPU                │  UI :3000 │ │
-        │     ┌──────────────┐           └───────────┘ │
-        │     │ Ollama :11434│                          │
-        │     │ nomic-embed  │  ◀── shared embedder      │
-        │     │ mistral:7b   │  ◀── local extraction     │
-        │     └──────────────┘                          │
-        └───────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    CC["Claude Code<br/>(client)"]
+    PI["Pi<br/>(client)"]
+    TS{{"Tailscale<br/>MagicDNS · tailnet-only"}}
+    ANT["Anthropic API<br/>Claude Haiku 4.5 · hosted"]
+
+    CC --> TS
+    PI --> TS
+
+    subgraph HOST["your server — Docker"]
+        direction TB
+        MP["<b>mcp-personal</b><br/>:8000/mcp/ · personal tier"]
+        MC["<b>mcp-client</b><br/>:8001/mcp/ · client-confidential tier"]
+        OL["<b>Ollama</b> :11434<br/>nomic-embed-text · mistral:7b<br/>local GPU"]
+        subgraph FALKOR["FalkorDB :6379 · browser UI :3000"]
+            direction LR
+            GP[("commonplace_personal")]
+            GC[("commonplace_client")]
+        end
+        MP -->|store| GP
+        MC -->|store| GC
+        MP -. embed .-> OL
+        MC -. embed .-> OL
+        MC -->|extract · local| OL
+    end
+
+    TS --> MP
+    TS --> MC
+    MP -->|extract · hosted| ANT
+
+    classDef ext fill:#fff3e0,stroke:#e67e22,color:#111;
+    classDef tier fill:#e8f0fe,stroke:#4285f4,color:#111;
+    class ANT ext
+    class MP,MC tier
 ```
 
 - **One FalkorDB**, two graphs selected per-instance by `FALKORDB_DATABASE`

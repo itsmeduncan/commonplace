@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & ideas
+    url: https://github.com/itsmeduncan/commonplace/discussions
+    about: Ask questions, share setups, or float ideas in Discussions.
+  - name: Security vulnerability
+    url: https://github.com/itsmeduncan/commonplace/security/advisories/new
+    about: Report security issues privately — please don't open a public issue.
