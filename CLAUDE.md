@@ -58,6 +58,22 @@ These trip up every edit — full explanations are in README §Gotchas:
 - graphiti reads the OpenAI-compatible base URL from `OPENAI_API_URL`; the reranker reads
   `OPENAI_BASE_URL`. Two different names for two different clients.
 
+## Memory model & tooling
+
+- **Ontology lives in config.** Each tier's `config/*.yaml` defines `graphiti.entity_types`
+  (`name` + `description` only — the server builds a Pydantic model per type from the description, so
+  the description IS the extraction instruction). Edit these to tune what gets captured; keep the
+  tiers' shared types aligned.
+- **Agent behavior is documented, not coded.** `docs/memory-protocol.md` is the read/write contract
+  (search-first, write durable facts, **never cross tiers**, cite-back). Change it to change how
+  agents use memory.
+- **Tooling:** `scripts/graph_stats.sh` (write observability), `scripts/backup.sh` / `restore.sh`,
+  `scripts/ingest_markdown.py` (corpus → episodes), `eval/run_eval.py` (retrieval recall). MCP verbs:
+  `add_memory(name, episode_body, group_id?, source, source_description?)`,
+  `search_memory_facts(query, max_facts)`, `search_nodes(query, entity_types?)`.
+- **Deferred work** (local reranker, server-side tier guard, read-side metrics, auth) is tracked in
+  `docs/ROADMAP.md` — those need an image patch or a sidecar, not config.
+
 ## Commands (run on the host, from the repo directory, e.g. `~/commonplace`)
 
 ```bash

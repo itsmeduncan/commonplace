@@ -41,3 +41,56 @@ database:
 graphiti:
   group_id: ${GRAPHITI_GROUP_ID:commonplace_personal}
   user_id: "mcp_user"
+
+  # --- Domain ontology (personal tier) ---
+  # Each entry becomes a Pydantic model whose `description` is the extraction
+  # instruction the LLM sees. Rich, trigger-pattern-style descriptions materially
+  # improve extraction precision. The MCP config schema only supports name +
+  # description (no typed fields). Keep this in sync with config/client.yaml's
+  # shared types so the two graphs stay queryable the same way.
+  entity_types:
+    - name: Preference
+      description: >-
+        IMPORTANT: prioritize this classification. A like, dislike, choice, or
+        opinion expressed by the user. Use a LOW threshold. Trigger patterns:
+        "I want/like/prefer/use X", "I don't want/avoid/dislike Y", "X is
+        better than Y", "go with X", "skip X". Capture the thing preferred and,
+        when stated, the reason.
+    - name: Person
+      description: >-
+        A named individual — colleague, friend, family member, author, or
+        contact. Capture their name and any stated role or relationship to the
+        user. Do not classify generic roles with no named person.
+    - name: Organization
+      description: >-
+        A company, team, employer, vendor, or institution. Capture the name and
+        the user's relationship to it (works at, customer of, evaluating).
+    - name: Project
+      description: >-
+        A concrete initiative, repo, product, or piece of work the user is
+        building or involved in. Capture the project name and its purpose. Link
+        people, tools, and decisions to the project they belong to.
+    - name: Tool
+      description: >-
+        A software product, library, service, framework, language, or piece of
+        hardware the user uses or evaluates (e.g. Postgres, Tailscale, Neovim).
+        Capture the name and what it is used for.
+    - name: Decision
+      description: >-
+        A choice the user made or committed to, especially with a rationale.
+        Trigger patterns: "we decided to X", "going with X because Y", "ruled
+        out Z". Capture what was decided and why; link to the project it affects.
+    - name: Goal
+      description: >-
+        Something the user is trying to achieve, an objective or desired
+        outcome, often time-bound. Capture the goal and any deadline or success
+        criterion mentioned.
+    - name: Topic
+      description: >-
+        A subject, concept, or area of interest the user is learning about or
+        working in (e.g. "knowledge graphs", "RAG", "home networking"). Use when
+        no more specific type fits.
+    - name: Resource
+      description: >-
+        A document, note, URL, article, or file referenced as a source of
+        information. Capture a title/identifier and what it is about.

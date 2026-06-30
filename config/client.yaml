@@ -44,3 +44,54 @@ database:
 graphiti:
   group_id: ${GRAPHITI_GROUP_ID:commonplace_client}
   user_id: "mcp_user"
+
+  # --- Domain ontology (client-confidential tier) ---
+  # Tuned for confidential / engagement work rather than personal life. Same
+  # config schema (name + description only). The local extractor (mistral:7b) is
+  # weak, so these descriptions carry extra weight — keep them concrete.
+  entity_types:
+    - name: Preference
+      description: >-
+        IMPORTANT: prioritize this classification. A stated choice, opinion, or
+        requirement-of-taste from a stakeholder. Low threshold. Trigger
+        patterns: "they want X", "the client prefers Y", "avoid Z". Capture the
+        preference and whose it is.
+    - name: Client
+      description: >-
+        The customer organization the engagement is for. Capture the name and
+        any context about their business or domain. There is usually one primary
+        Client per engagement.
+    - name: Stakeholder
+      description: >-
+        A named person on the client side — sponsor, decision-maker, user, or
+        contact. Capture their name and role. Link them to the Client and to any
+        Decision or Requirement they own.
+    - name: Engagement
+      description: >-
+        The project, contract, or body of work being delivered for the client.
+        Capture its name, scope, and objective. Link deliverables, decisions,
+        and requirements to the Engagement.
+    - name: Deliverable
+      description: >-
+        A concrete artifact owed to the client — a report, system, model,
+        document, or milestone. Capture what it is and its status or due date if
+        mentioned.
+    - name: Requirement
+      description: >-
+        A specific need the solution must fulfill. Trigger patterns: "must have
+        X", "X is required", "needs to Y". Capture the requirement and link it to
+        the Engagement. Note priority if stated.
+    - name: Decision
+      description: >-
+        A choice made during the engagement, ideally with rationale. Trigger
+        patterns: "we decided X", "agreed to Y", "ruled out Z". Capture what was
+        decided, why, and who decided.
+    - name: Risk
+      description: >-
+        A potential problem, blocker, dependency, or concern that could affect
+        delivery. Capture the risk and any mitigation or owner mentioned.
+    - name: SystemComponent
+      description: >-
+        A piece of the client's technical environment — a service, database,
+        integration, model, or tool relevant to the work. Capture its name and
+        role.
