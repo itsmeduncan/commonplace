@@ -1,0 +1,98 @@
+<!doctype html>
+<!-- Source for the GitHub social preview. Render to PNG:
+     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new \
+       --screenshot=.github/social-preview.png --window-size=1280,640 \
+       --hide-scrollbars file://$PWD/.github/social-preview.html
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        --bg: #0f172a;
+        --teal: #0d9488;
+        --teal-bright: #2dd4bf;
+        --white: #f8fafc;
+        --slate: #cbd5e1;
+        --muted: #94a3b8;
+        --dim: #64748b;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1280px; height: 640px; }
+      body {
+        background:
+          radial-gradient(900px 600px at 100% 0%, rgba(13, 148, 136, 0.22), transparent 60%),
+          radial-gradient(700px 500px at 0% 100%, rgba(45, 212, 191, 0.08), transparent 55%),
+          var(--bg);
+        font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+        color: var(--white);
+        position: relative;
+        overflow: hidden;
+      }
+      .pad { padding: 76px 80px; height: 100%; display: flex; flex-direction: column; }
+      .eyebrow {
+        color: var(--teal-bright); font-size: 22px; font-weight: 700;
+        letter-spacing: 4px; text-transform: uppercase;
+      }
+      h1 {
+        font-size: 104px; font-weight: 800; letter-spacing: -3px;
+        margin: 14px 0 0; line-height: 1;
+      }
+      h1 .dot { color: var(--teal); }
+      .tagline { font-size: 42px; font-weight: 600; color: var(--slate); margin-top: 26px; }
+      .sub { font-size: 25px; color: var(--muted); margin-top: 16px; max-width: 760px; line-height: 1.45; }
+      .chips { display: flex; gap: 14px; margin-top: 34px; }
+      .chip {
+        font-size: 21px; color: var(--slate); padding: 9px 18px;
+        border: 1.5px solid rgba(13, 148, 136, 0.55); border-radius: 999px;
+        background: rgba(13, 148, 136, 0.10);
+      }
+      .foot {
+        margin-top: auto; display: flex; align-items: center; gap: 16px;
+        font-size: 23px; color: var(--dim);
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      .foot .lic { color: var(--teal-bright); }
+      /* graph motif, top-right */
+      .motif { position: absolute; top: 64px; right: 64px; opacity: 0.9; }
+    </style>
+  </head>
+  <body>
+    <svg class="motif" width="300" height="240" viewBox="0 0 300 240" fill="none">
+      <g stroke="#0d9488" stroke-width="2" opacity="0.55">
+        <line x1="60" y1="50" x2="170" y2="30" />
+        <line x1="170" y1="30" x2="250" y2="95" />
+        <line x1="60" y1="50" x2="110" y2="150" />
+        <line x1="110" y1="150" x2="250" y2="95" />
+        <line x1="110" y1="150" x2="200" y2="195" />
+        <line x1="250" y1="95" x2="200" y2="195" />
+      </g>
+      <g fill="#2dd4bf">
+        <circle cx="60" cy="50" r="9" />
+        <circle cx="170" cy="30" r="7" />
+        <circle cx="250" cy="95" r="11" />
+        <circle cx="110" cy="150" r="8" />
+        <circle cx="200" cy="195" r="7" />
+      </g>
+    </svg>
+
+    <div class="pad">
+      <div class="eyebrow">Open Source · MIT</div>
+      <h1>commonplace<span class="dot">.</span></h1>
+      <div class="tagline">Offline-first memory for your AI agents.</div>
+      <div class="sub">
+        A self-hosted, two-tier knowledge graph for MCP clients. Extraction runs locally by
+        default — nothing leaves your box.
+      </div>
+      <div class="chips">
+        <span class="chip">Local by default</span>
+        <span class="chip">Two-tier privacy</span>
+        <span class="chip">MCP-native</span>
+        <span class="chip">Over Tailscale</span>
+      </div>
+      <div class="foot">
+        github.com/itsmeduncan/commonplace
+      </div>
+    </div>
+  </body>
+</html>
