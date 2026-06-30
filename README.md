@@ -21,6 +21,9 @@ allowed to do that extraction:
 | **personal**            | `commonplace_personal` | Claude Haiku 4.5 (hosted)          | Anthropic API  | your own notes, projects, life — best graph quality, pennies per ingest |
 | **client-confidential** | `commonplace_client`   | `mistral:7b-instruct-q4_0` (local) | the host's GPU | confidential, local-only material that must never leave the machine     |
 
+The personal tier's extraction model is a default, not a lock-in: it's env-switchable to a local model
+too (see the _Local-only?_ note under [Setup](#setup)). The client tier is always local.
+
 **Retrieval is cheap and private on both tiers.** Search is embeddings + BM25 + graph traversal
 with **no LLM in the query path**. The GPU only ever does slow, asynchronous _background_
 extraction — query latency is never affected. Slow local extraction is therefore fine.

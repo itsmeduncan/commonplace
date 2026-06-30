@@ -111,7 +111,8 @@ curl -s -o /dev/null -w "%{http_code}\n" \
   -H "Authorization: Bearer $PERSONAL_TOKEN" http://your-server.your-tailnet.ts.net:8000/mcp/
 ```
 
-Backup/restore is via Redis `SAVE` + `docker compose cp` of `/data/dump.rdb` — see README §Backup.
+Backup/restore is via `scripts/backup.sh` / `scripts/restore.sh` (tarball of FalkorDB's data dir,
+RDB+AOF; the dir is `/var/lib/falkordb/data`, where the `falkordb_data` volume mounts) — see README §Backup.
 
 ## Access / networking
 
