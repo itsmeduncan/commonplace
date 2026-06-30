@@ -336,6 +336,26 @@ server. To add one:
 
 ---
 
+## Memory & ontology
+
+Two things turn this from a memory _store_ into a memory _system agents use well_:
+
+- **Per-tier ontology.** Each tier defines `graphiti.entity_types` in its config (personal:
+  Preference, Project, Person, Decision, …; client: Engagement, Stakeholder, Requirement, Risk, …).
+  These type descriptions constrain extraction — the single biggest lever on graph quality, and they
+  help the weak local model the most.
+- **An agent protocol.** [`docs/memory-protocol.md`](docs/memory-protocol.md) is the contract for any
+  client (Claude Code, Pi): search before answering, write durable facts, **never cross tiers** (no
+  confidential data on the hosted personal tier), and cite what you used. Install it as a skill or
+  system prompt — without it, agents rarely call memory and the graph stays empty.
+
+**Is it actually being used?** Run `scripts/graph_stats.sh`; if node/edge counts don't grow as you
+work, agents aren't writing. Seed an existing corpus with `scripts/ingest_markdown.py`, and gate
+retrieval quality with `eval/run_eval.py`. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next
+(read-side metrics, a local reranker, server-side tier enforcement).
+
+---
+
 ## Repo layout
 
 ```
@@ -344,8 +364,18 @@ commonplace/
 ├── Dockerfile                   # commonplace-mcp:local — standalone image + anthropic SDK + patch
 ├── patch_transport_security.py  # build-time: allow remote Host headers (disable DNS-rebind guard)
 ├── config/
-│   ├── personal.yaml            # instance A — Anthropic Haiku extraction
-│   └── client.yaml              # instance B — local Ollama extraction
+│   ├── personal.yaml            # instance A — Anthropic Haiku extraction + personal ontology
+│   └── client.yaml              # instance B — local Ollama extraction + confidential ontology
+├── scripts/
+│   ├── graph_stats.sh           # node/edge/episode counts per tier (are writes landing?)
+│   ├── backup.sh / restore.sh   # FalkorDB dump + restore
+│   └── ingest_markdown.py       # load a markdown corpus (notes/docs) into a tier
+├── eval/
+│   ├── queries.yaml             # retrieval eval cases (question → expected facts)
+│   └── run_eval.py              # scores recall against a tier
+├── docs/
+│   ├── memory-protocol.md       # how agents should read/write memory (tier safety, cite-back)
+│   └── ROADMAP.md               # hardening & maturity plan
 ├── .env.example                 # template; copy to .env on the host (gitignored)
 ├── .dockerignore                # keeps .env and other secrets out of the build context
 ├── CLAUDE.md                    # guidance for Claude Code working in this repo

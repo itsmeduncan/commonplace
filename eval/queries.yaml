@@ -1,0 +1,14 @@
+# Retrieval eval set. Each entry is a question and the substrings you expect to
+# appear in the returned facts. This catches regressions when you change the
+# ontology, swap models, or add a reranker — run it before and after.
+#
+# These are PLACEHOLDERS. Replace them with questions whose answers you know are
+# in your own graph (seed a few facts first, then write queries that should hit
+# them). Matching is case-insensitive substring matching against fact text.
+queries:
+  - query: "What database does commonplace use?"
+    expect: ["falkordb"]
+  - query: "How is confidential data extracted?"
+    expect: ["local", "mistral"]
+  - query: "What embedder is shared across tiers?"
+    expect: ["nomic-embed-text"]
