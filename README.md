@@ -267,21 +267,21 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $CLIENT_TOKEN
 
 ## Backup & restore
 
-FalkorDB is Redis under the hood; both graphs live in one keyspace, persisted to the
-`falkordb_data` volume at `/data`.
+FalkorDB persists to the `falkordb_data` volume — mounted at its actual data dir
+(`/var/lib/falkordb/data`), with **AOF enabled** (`--appendonly yes`), so writes are durable to ~1s
+and survive container recreates. Back up / restore the whole data dir (RDB + AOF) with the scripts:
 
 ```bash
-# Backup: trigger a save, then copy the dump out of the container
-docker compose exec falkordb redis-cli -a "$FALKORDB_PASSWORD" SAVE
-docker compose cp falkordb:/data/dump.rdb ./backups/dump-$(date +%F).rdb
-
-# Restore: stop, drop the dump back into the volume, start
-docker compose stop falkordb
-docker compose cp ./backups/dump-YYYY-MM-DD.rdb falkordb:/data/dump.rdb
-docker compose start falkordb
+./scripts/backup.sh                                       # -> ./backups/falkordb-<stamp>.tar.gz
+./scripts/restore.sh ./backups/falkordb-<stamp>.tar.gz    # overwrites live data (prompts to confirm)
 ```
 
-(`$FALKORDB_PASSWORD` is in `.env`; `redis-cli` reads it from the container env.)
+Both read `FALKORDB_PASSWORD` from `.env`. `backup.sh` asks the server for its data dir, so it keeps
+working even if the path changes.
+
+> Earlier revisions mounted the volume at `/data` while FalkorDB wrote to `/var/lib/falkordb/data`
+> on the ephemeral container layer — so data was lost on every `--force-recreate`. The mount path is
+> now fixed; redeploy with `commonplace update` to apply it.
 
 ---
 

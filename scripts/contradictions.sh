@@ -10,6 +10,10 @@ set -euo pipefail
 
 GRAPH="${1:-commonplace_personal}"
 LIMIT="${2:-25}"
+# Load .env from the repo root so the script works when run directly.
+_root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+[ -z "${FALKORDB_PASSWORD:-}" ] && [ -f "$_root/.env" ] && { set -a; . "$_root/.env"; set +a; }
+
 : "${FALKORDB_PASSWORD:?Set FALKORDB_PASSWORD (it lives in .env on the host)}"
 CONTAINER="${FALKORDB_CONTAINER:-commonplace-falkordb}"
 

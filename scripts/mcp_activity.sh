@@ -42,7 +42,7 @@ if not total:
     sys.exit(0)
 
 print(f"{total} gateway requests in the last log window\n")
-print(f"{\"tier\":<10}{\"status\":<8}{\"count\":>8}")
+print("%-10s%-8s%8s" % ("tier", "status", "count"))
 print("-" * 26)
 for (tier, klass), n in sorted(counts.items()):
     print(f"{tier:<10}{klass:<8}{n:>8}")
