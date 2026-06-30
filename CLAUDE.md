@@ -37,6 +37,11 @@ only the load-bearing facts and points back to it.
   `claude-haiku-4-5`. **client tier** (`config/client.yaml`, host `:8001`) extracts with local
   `mistral:7b-instruct-q4_0` on the GPU — confidential data never leaves the box. Concurrency differs
   by design: `SEMAPHORE_LIMIT` 5 (personal) vs 1 (client, GPU-bound) — set in `docker-compose.yml`.
+- **Gateway fronts both tiers.** The `gateway` service (Caddy, `gateway/Caddyfile`) owns host ports
+  `:8000`/`:8001`; the MCP containers are internal-only (`expose`, no host ports). It enforces
+  **per-tier bearer auth** (`PERSONAL_TOKEN`/`CLIENT_TOKEN`) — separate tokens = tier isolation — and
+  emits JSON access logs (audit) + Prometheus metrics (`:9180`, host-local). Clients must send
+  `Authorization: Bearer <token>`.
 - **Shared embedder.** Both tiers use Ollama `nomic-embed-text` (768-dim). Do **not** change the
   embedder on only one tier — vectors from different embedders are not comparable.
 - **MCP path has a trailing slash: `/mcp/`** (FastMCP default, not configurable). FalkorDB UI is on
@@ -67,12 +72,15 @@ These trip up every edit — full explanations are in README §Gotchas:
 - **Agent behavior is documented, not coded.** `docs/memory-protocol.md` is the read/write contract
   (search-first, write durable facts, **never cross tiers**, cite-back). Change it to change how
   agents use memory.
-- **Tooling:** `scripts/graph_stats.sh` (write observability), `scripts/backup.sh` / `restore.sh`,
-  `scripts/ingest_markdown.py` (corpus → episodes), `eval/run_eval.py` (retrieval recall). MCP verbs:
+- **Tooling:** `scripts/graph_stats.sh` (write counts), `scripts/mcp_activity.sh` (read counts from
+  gateway logs), `scripts/recall.py` (token-budgeted recall), `scripts/contradictions.sh` (superseded
+  facts), `scripts/backup.sh` / `restore.sh`, `scripts/ingest_markdown.py` (corpus → episodes),
+  `eval/run_eval.py` (retrieval recall). The MCP-client scripts take `--token`. MCP verbs:
   `add_memory(name, episode_body, group_id?, source, source_description?)`,
   `search_memory_facts(query, max_facts)`, `search_nodes(query, entity_types?)`.
-- **Deferred work** (local reranker, server-side tier guard, read-side metrics, auth) is tracked in
-  `docs/ROADMAP.md` — those need an image patch or a sidecar, not config.
+- **Deferred work** (local reranker, payload-level tier guard, per-agent identity, richer ontology) is
+  tracked in `docs/ROADMAP.md` — those need an image patch, not config. Read/auth/metrics/digest-pin
+  shipped via the gateway + Dockerfile.
 
 ## Commands (run on the host, from the repo directory, e.g. `~/commonplace`)
 
@@ -92,16 +100,19 @@ Editing a `config/*.yaml` does not hot-reload — `--force-recreate` the affecte
 Health check from a client (tailnet or LAN):
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://your-server.your-tailnet.ts.net:8000/mcp/   # expect 307
+# 401 without a token (gateway auth working); 307 with the right tier token.
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -H "Authorization: Bearer $PERSONAL_TOKEN" http://your-server.your-tailnet.ts.net:8000/mcp/
 ```
 
 Backup/restore is via Redis `SAVE` + `docker compose cp` of `/data/dump.rdb` — see README §Backup.
 
 ## Access / networking
 
-- MCP ports bind `0.0.0.0` on the host, reached over the tailnet at
-  `http://your-server.your-tailnet.ts.net:8000/mcp/` and `:8001/mcp/` (also LAN-reachable; **not**
-  public — no router port-forward).
+- The **gateway** owns host ports `:8000`/`:8001` (the MCP containers are internal-only), reached
+  over the tailnet at `http://your-server.your-tailnet.ts.net:8000/mcp/` and `:8001/mcp/` (also
+  LAN-reachable; **not** public). Every request needs `Authorization: Bearer <tier-token>`.
+  Prometheus metrics are on `:9180` (host-local only).
 - The transport patch disables FastMCP's DNS-rebinding protection — safe here because the tailnet is
   the trust boundary and clients are agents, not browsers. To tighten, set explicit `allowed_hosts`
   (see the patch's docstring) instead of disabling.

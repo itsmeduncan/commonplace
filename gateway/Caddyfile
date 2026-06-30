@@ -1,0 +1,49 @@
+# commonplace gateway — fronts both MCP tiers with per-tier auth, access logging,
+# and Prometheus metrics. This is the observability + access-control layer from
+# the roadmap (Phase 2 read-side metrics, Phase 3 auth / tier-isolation / audit).
+#
+# Tier isolation is enforced by SEPARATE tokens: a client configured with only
+# CLIENT_TOKEN literally cannot reach the personal (hosted-extraction) endpoint.
+# Tokens come from the container environment (.env). Clients must send
+#   Authorization: Bearer <token>
+# on every request.
+{
+	admin off
+	metrics
+}
+
+# --- Prometheus metrics (scrape target; published host-local only in compose) ---
+:9180 {
+	metrics
+}
+
+# --- Personal tier: hosted Anthropic extraction ---
+:8000 {
+	@unauth not header Authorization "Bearer {$PERSONAL_TOKEN}"
+	respond @unauth "Unauthorized" 401
+
+	reverse_proxy mcp-personal:8000 {
+		# MCP streamable HTTP uses SSE for some responses — don't buffer.
+		flush_interval -1
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# --- Client-confidential tier: local GPU extraction ---
+:8001 {
+	@unauth not header Authorization "Bearer {$CLIENT_TOKEN}"
+	respond @unauth "Unauthorized" 401
+
+	reverse_proxy mcp-client:8000 {
+		flush_interval -1
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

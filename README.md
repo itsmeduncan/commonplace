@@ -44,8 +44,11 @@ flowchart TB
 
     subgraph HOST["your server — Docker"]
         direction TB
-        MP["<b>mcp-personal</b><br/>:8000/mcp/ · personal tier"]
-        MC["<b>mcp-client</b><br/>:8001/mcp/ · client-confidential tier"]
+        GW["<b>gateway</b> :8000 / :8001<br/>per-tier auth · logging · metrics"]
+        MP["<b>mcp-personal</b><br/>personal tier · internal"]
+        MC["<b>mcp-client</b><br/>client-confidential · internal"]
+        GW --> MP
+        GW --> MC
         OL["<b>Ollama</b> :11434<br/>nomic-embed-text · mistral:7b<br/>local GPU"]
         subgraph FALKOR["FalkorDB :6379 · browser UI :3000"]
             direction LR
@@ -59,8 +62,7 @@ flowchart TB
         MC -->|extract · local| OL
     end
 
-    TS --> MP
-    TS --> MC
+    TS -->|Bearer token| GW
     MP -->|extract · hosted| ANT
 
     classDef ext fill:#fff3e0,stroke:#e67e22,color:#111;
@@ -76,6 +78,9 @@ flowchart TB
   **`/mcp/`** (trailing slash).
 - **One shared Ollama embedder** (`nomic-embed-text`, 768-dim) used by _both_ instances. Do not
   mix embedders — vectors from different embedders are not comparable.
+- **A gateway** (Caddy) fronts both tiers: it owns the host ports, requires a **per-tier bearer
+  token** (so a client with only the client token can't reach the personal tier), and emits access
+  logs (audit) + Prometheus metrics. The MCP containers themselves are internal-only.
 
 ### Endpoint / graph map
 
@@ -88,6 +93,10 @@ flowchart TB
 | client      | `http://your-server.your-tailnet.ts.net:8001/mcp/` | 8000          | `commonplace_client`        | `mistral:7b-instruct-q4_0` | 1                 |
 | FalkorDB    | `127.0.0.1:6379` (host-local only)                 | 6379          | both graphs                 | —                          | —                 |
 | FalkorDB UI | `http://your-server.your-tailnet.ts.net:3000`      | 3000          | browse either graph         | —                          | —                 |
+| Metrics     | `127.0.0.1:9180/metrics` (host-local only)         | 9180          | gateway (Prometheus)        | —                          | —                 |
+
+The personal/client endpoints require `Authorization: Bearer <tier-token>` (set `PERSONAL_TOKEN` /
+`CLIENT_TOKEN` in `.env`). A request without the right token gets `401`.
 
 ---
 
@@ -120,8 +129,10 @@ ollama pull mistral:7b-instruct-q4_0
 
 # 2. Configure secrets
 cp .env.example .env
-#    edit .env: set a strong FALKORDB_PASSWORD, and ANTHROPIC_API_KEY for the personal tier
-#    (openssl rand -hex 24  generates a good password)
+#    edit .env and set:
+#      FALKORDB_PASSWORD          (openssl rand -hex 24)
+#      ANTHROPIC_API_KEY          (for the personal tier)
+#      PERSONAL_TOKEN / CLIENT_TOKEN   gateway bearer tokens (openssl rand -hex 32 each)
 
 # 3. Build the local image and start the stack
 docker compose up -d
@@ -133,6 +144,11 @@ Then point a client at the two endpoints — see [Client configuration](#client-
 > **Local-only?** If you don't want the hosted tier, remove the `mcp-personal` service from
 > `docker-compose.yml` (or just don't add it as a client). The `client` tier runs without any
 > Anthropic key.
+
+> **Upgrading from a pre-gateway deploy?** Add `PERSONAL_TOKEN` / `CLIENT_TOKEN` to `.env`, then
+> `docker compose up -d --build --force-recreate` (the MCP tiers move behind the gateway and the
+> ontology change needs a recreate). Re-add each client with its `Authorization: Bearer` header —
+> existing token-less clients will start getting `401`.
 
 ---
 
@@ -222,11 +238,18 @@ docker compose down
 docker compose down -v
 ```
 
-Quick MCP health check (from a client, over the tailnet or LAN):
+Quick MCP health check (from a client, over the tailnet or LAN). Without a token you get `401`
+(auth working); with the right tier token you get `307`:
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://your-server.your-tailnet.ts.net:8000/mcp/
-curl -s -o /dev/null -w "%{http_code}\n" http://your-server.your-tailnet.ts.net:8001/mcp/
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $PERSONAL_TOKEN" \
+  http://your-server.your-tailnet.ts.net:8000/mcp/
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $CLIENT_TOKEN" \
+  http://your-server.your-tailnet.ts.net:8001/mcp/
+
+# Is anyone actually using it? (run on the host)
+./scripts/graph_stats.sh        # writes landing per tier
+./scripts/mcp_activity.sh       # reads/writes per tier from the gateway log
 ```
 
 ---
@@ -253,10 +276,12 @@ docker compose start falkordb
 
 ## Networking / exposure
 
-- **Default: MagicDNS + port.** The MCP ports bind to `0.0.0.0` on the host and are reached over
+- **Default: MagicDNS + port.** The gateway binds `:8000`/`:8001` on the host and is reached over
   the tailnet at `http://your-server.your-tailnet.ts.net:8000/mcp/` and `:8001/mcp/`. This is
   tailnet-reachable (and LAN-reachable) but **not** public — do not port-forward these on your router.
-- **FalkorDB `:6379` binds to `127.0.0.1` only** (host-local) — clients never touch it directly.
+- **Auth.** Every request needs `Authorization: Bearer <tier-token>`; the gateway 401s otherwise.
+  Separate `PERSONAL_TOKEN` / `CLIENT_TOKEN` give each client only the tiers it should touch.
+- **FalkorDB `:6379` and metrics `:9180` bind to `127.0.0.1` only** (host-local) — never on the tailnet.
 - **Keep the host single-homed.** The host's primary interface should hold exactly one IPv4. If a
   second address appears (e.g. a static IP _plus_ a DHCP lease), Tailscale can advertise two
   WireGuard endpoints and the tunnel flaps, which **black-holes TCP over MagicDNS while the LAN and
@@ -283,9 +308,14 @@ status`). The identical ports/paths are also served on the host's LAN IP, which 
 
 ### Claude Code (user scope)
 
+Pass the per-tier bearer token with `--header`. Give a client only the tiers it should reach (e.g.
+omit the personal server on a machine that handles confidential work):
+
 ```bash
-claude mcp add --scope user --transport http commonplace-personal http://your-server.your-tailnet.ts.net:8000/mcp/
-claude mcp add --scope user --transport http commonplace-client   http://your-server.your-tailnet.ts.net:8001/mcp/
+claude mcp add --scope user --transport http commonplace-personal http://your-server.your-tailnet.ts.net:8000/mcp/ \
+  --header "Authorization: Bearer $PERSONAL_TOKEN"
+claude mcp add --scope user --transport http commonplace-client   http://your-server.your-tailnet.ts.net:8001/mcp/ \
+  --header "Authorization: Bearer $CLIENT_TOKEN"
 claude mcp list   # both should report ✓ Connected
 ```
 
@@ -308,11 +338,13 @@ this server doesn't support. The extension lazy-connects by default — set
   "mcpServers": {
     "commonplace-personal": {
       "type": "http",
-      "url": "http://your-server.your-tailnet.ts.net:8000/mcp/"
+      "url": "http://your-server.your-tailnet.ts.net:8000/mcp/",
+      "headers": { "Authorization": "Bearer YOUR_PERSONAL_TOKEN" }
     },
     "commonplace-client": {
       "type": "http",
-      "url": "http://your-server.your-tailnet.ts.net:8001/mcp/"
+      "url": "http://your-server.your-tailnet.ts.net:8001/mcp/",
+      "headers": { "Authorization": "Bearer YOUR_CLIENT_TOKEN" }
     }
   }
 }
@@ -349,10 +381,12 @@ Two things turn this from a memory _store_ into a memory _system agents use well
   confidential data on the hosted personal tier), and cite what you used. Install it as a skill or
   system prompt — without it, agents rarely call memory and the graph stays empty.
 
-**Is it actually being used?** Run `scripts/graph_stats.sh`; if node/edge counts don't grow as you
-work, agents aren't writing. Seed an existing corpus with `scripts/ingest_markdown.py`, and gate
-retrieval quality with `eval/run_eval.py`. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next
-(read-side metrics, a local reranker, server-side tier enforcement).
+**Is it actually being used?** `scripts/graph_stats.sh` shows whether _writes_ are landing;
+`scripts/mcp_activity.sh` (and the Prometheus endpoint on `:9180`) show whether agents are _reading_.
+Seed an existing corpus with `scripts/ingest_markdown.py`, pull token-budgeted context with
+`scripts/recall.py`, gate retrieval quality with `eval/run_eval.py`, and review resolved
+contradictions with `scripts/contradictions.sh`. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's
+shipped vs. still open (a local reranker remains the notable deferral).
 
 ---
 
@@ -360,14 +394,17 @@ retrieval quality with `eval/run_eval.py`. See [`docs/ROADMAP.md`](docs/ROADMAP.
 
 ```
 commonplace/
-├── docker-compose.yml           # FalkorDB + 2 MCP instances, restart: unless-stopped
-├── Dockerfile                   # commonplace-mcp:local — standalone image + anthropic SDK + patch
+├── docker-compose.yml           # FalkorDB + 2 MCP instances + gateway, restart: unless-stopped
+├── Dockerfile                   # commonplace-mcp:local — standalone image (digest-pinned) + patch
 ├── patch_transport_security.py  # build-time: allow remote Host headers (disable DNS-rebind guard)
+├── gateway/
+│   └── Caddyfile                # per-tier bearer auth + access logging + Prometheus metrics
 ├── config/
 │   ├── personal.yaml            # instance A — Anthropic Haiku extraction + personal ontology
 │   └── client.yaml              # instance B — local Ollama extraction + confidential ontology
 ├── scripts/
-│   ├── graph_stats.sh           # node/edge/episode counts per tier (are writes landing?)
+│   ├── graph_stats.sh           # write counts per tier   · mcp_activity.sh  # read counts (gateway log)
+│   ├── recall.py                # token-budgeted recall    · contradictions.sh # superseded facts
 │   ├── backup.sh / restore.sh   # FalkorDB dump + restore
 │   └── ingest_markdown.py       # load a markdown corpus (notes/docs) into a tier
 ├── eval/

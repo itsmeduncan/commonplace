@@ -38,9 +38,10 @@ def _facts_text(result) -> str:
     return "\n".join(chunks).lower()
 
 
-async def run(url: str, queries: list[dict], max_facts: int) -> int:
+async def run(url: str, queries: list[dict], max_facts: int, token: str | None) -> int:
     passed = 0
-    async with streamablehttp_client(url) as (read, write, _):
+    headers = {"Authorization": f"Bearer {token}"} if token else None
+    async with streamablehttp_client(url, headers=headers) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
             for case in queries:
@@ -67,12 +68,13 @@ def main() -> None:
     ap.add_argument("--url", required=True, help="MCP endpoint, e.g. http://host:8000/mcp/")
     ap.add_argument("--queries", type=Path, default=Path(__file__).with_name("queries.yaml"))
     ap.add_argument("--max-facts", type=int, default=10)
+    ap.add_argument("--token", default=None, help="Bearer token for the gateway (per-tier)")
     args = ap.parse_args()
     data = yaml.safe_load(args.queries.read_text())
     queries = data.get("queries", [])
     if not queries:
         sys.exit(f"No queries in {args.queries}")
-    sys.exit(asyncio.run(run(args.url, queries, args.max_facts)))
+    sys.exit(asyncio.run(run(args.url, queries, args.max_facts, args.token)))
 
 
 if __name__ == "__main__":

@@ -17,7 +17,12 @@ whatever client you use. Keep all clients on the same protocol so their writes c
 **Hard rule: never write confidential or client data to the personal tier.** The personal tier
 sends text to a hosted model (Anthropic) for extraction; the client tier extracts locally and never
 leaves the host. When in doubt about whether something is confidential, use the client tier or don't
-write it. There is currently no server-side guard — this rule is enforced by you, the agent.
+write it. The gateway enforces tier isolation with **separate bearer tokens** — a client given only
+the client token cannot reach the personal endpoint — but you should still follow this rule, since a
+client configured with both tokens could cross over.
+
+Every request needs `Authorization: Bearer <tier-token>`; configure each client with only the
+token(s) for the tiers it's allowed to touch.
 
 ## When to READ (search before you answer)
 
@@ -46,6 +51,9 @@ After you learn something that will matter **beyond this session**, call `add_me
   is weak. Include a source and timestamp when you can.
 - **Match the ontology:** the tiers define entity types (Preference, Project, Person, Decision,
   Engagement, Requirement, …). Phrase memories so those types are extractable.
+- **Scope by project:** pass a `group_id` to keep a project's memory in its own namespace within the
+  tier (e.g. `group_id="acme-redesign"`). This makes later recall filterable and keeps unrelated
+  projects from bleeding together. Omit it for general/personal memory.
 
 ## Make leverage visible — CITE what you used
 

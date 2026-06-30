@@ -8,7 +8,10 @@
 #
 # Adding the SDK restores the native Anthropic client. The same image is used for
 # both tiers — the extra package is harmless for the local-only client tier.
-FROM zepai/knowledge-graph-mcp:standalone
+# Pinned by digest for reproducible builds — the `:standalone` tag is a moving
+# target, so a digest pin makes upstream upgrades deliberate (Dependabot's docker
+# ecosystem proposes bumps; CI's image build verifies the patch still applies).
+FROM zepai/knowledge-graph-mcp:standalone@sha256:460bafb39439d99ff001ea6ef03efbe0bd5d9e6afe2655edf926da4fd9df97c5
 
 # 1) Add the Anthropic SDK (absent from the upstream image) so provider: anthropic works.
 RUN cd /app/mcp && uv pip install anthropic

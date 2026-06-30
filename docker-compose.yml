@@ -52,8 +52,9 @@ services:
       - "host.docker.internal:host-gateway"       # so the container can reach Ollama on the host
     volumes:
       - ./config/personal.yaml:/app/mcp/config/config.yaml:ro
-    ports:
-      - "8000:8000"
+    # No host ports — the gateway fronts this tier with per-tier auth + access logging.
+    expose:
+      - "8000"
     restart: unless-stopped
 
   # ---- CLIENT-CONFIDENTIAL tier: LOCAL GPU extraction, never leaves the box ----
@@ -79,10 +80,33 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./config/client.yaml:/app/mcp/config/config.yaml:ro
+    # No host ports — the gateway fronts this tier with per-tier auth + access logging.
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  # ---- GATEWAY: per-tier auth, access logging (audit), and Prometheus metrics ----
+  # Fronts both MCP tiers. Tier isolation is enforced by separate bearer tokens:
+  # a client holding only CLIENT_TOKEN cannot reach the personal endpoint.
+  gateway:
+    image: caddy:2-alpine
+    container_name: commonplace-gateway
+    depends_on: [mcp-personal, mcp-client]
+    env_file: [.env]                              # PERSONAL_TOKEN, CLIENT_TOKEN
+    volumes:
+      - ./gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     ports:
-      - "8001:8000"
+      - "8000:8000"                               # personal tier (tailnet/LAN, token-gated)
+      - "8001:8001"                               # client tier (tailnet/LAN, token-gated)
+      - "127.0.0.1:9180:9180"                     # Prometheus metrics — host-local only
     restart: unless-stopped
 
 volumes:
   falkordb_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
