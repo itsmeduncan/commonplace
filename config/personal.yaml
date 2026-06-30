@@ -12,14 +12,24 @@ server:
   port: 8000               # container-internal; compose maps host:8000 -> container:8000
 
 llm:
-  provider: "anthropic"    # native Anthropic client (NOT the openai path)
-  model: "claude-haiku-4-5"
+  # Default = hosted Anthropic Haiku (best graph quality). To run the personal tier
+  # FULLY LOCAL like the client tier, set in .env:
+  #   PERSONAL_LLM_PROVIDER=openai
+  #   PERSONAL_LLM_MODEL=mistral:7b-instruct-q4_0
+  #   PERSONAL_SEMAPHORE_LIMIT=1   (don't hammer the single GPU — see docker-compose.yml)
+  # ANTHROPIC_API_KEY then becomes optional. Both provider blocks below always exist;
+  # `provider` selects which one is actually constructed.
+  provider: ${PERSONAL_LLM_PROVIDER:anthropic}   # "anthropic" (hosted) | "openai" (local Ollama)
+  model: ${PERSONAL_LLM_MODEL:claude-haiku-4-5}
   max_tokens: 4096
-  temperature: 0.0         # REQUIRED: Anthropic 400s on a null temperature; 0.0 = deterministic extraction
+  temperature: 0.0         # REQUIRED for Anthropic (400s on null temperature); harmless for the local path
   providers:
     anthropic:
-      api_key: ${ANTHROPIC_API_KEY}
+      api_key: ${ANTHROPIC_API_KEY:}   # empty default so local-only setups don't need a key
       max_retries: 3
+    openai:                # used when PERSONAL_LLM_PROVIDER=openai → OpenAIGenericClient against Ollama
+      api_key: "ollama"    # dummy; the generic client rejects an empty key
+      api_url: ${OLLAMA_API_URL:http://host.docker.internal:11434/v1}
 
 embedder:
   provider: "openai"       # OpenAI-compatible client pointed at Ollama (auto-uses generic client)

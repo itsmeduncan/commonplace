@@ -34,9 +34,12 @@ only the load-bearing facts and points back to it.
   `patch_transport_security.py`. Use `:standalone`, never `:latest` (the latter bundles its own
   FalkorDB and can't share one).
 - **personal tier** (`config/personal.yaml`, host `:8000`) extracts with hosted Anthropic
-  `claude-haiku-4-5`. **client tier** (`config/client.yaml`, host `:8001`) extracts with local
-  `mistral:7b-instruct-q4_0` on the GPU — confidential data never leaves the box. Concurrency differs
-  by design: `SEMAPHORE_LIMIT` 5 (personal) vs 1 (client, GPU-bound) — set in `docker-compose.yml`.
+  `claude-haiku-4-5` **by default, but is env-switchable to local** — set `PERSONAL_LLM_PROVIDER=openai`
+  / `PERSONAL_LLM_MODEL=...` / `PERSONAL_SEMAPHORE_LIMIT=1` in `.env` to run it on the GPU like the
+  client tier (both provider blocks always exist in the config; `provider` picks one). **client tier**
+  (`config/client.yaml`, host `:8001`) extracts with local `mistral:7b-instruct-q4_0` on the GPU —
+  confidential data never leaves the box. Concurrency: `SEMAPHORE_LIMIT` 5 (personal, hosted) vs 1
+  (client, GPU-bound); both now env-overridable in `docker-compose.yml`.
 - **Gateway fronts both tiers.** The `gateway` service (Caddy, `gateway/Caddyfile`) owns host ports
   `:8000`/`:8001`; the MCP containers are internal-only (`expose`, no host ports). It enforces
   **per-tier bearer auth** (`PERSONAL_TOKEN`/`CLIENT_TOKEN`) — separate tokens = tier isolation — and
