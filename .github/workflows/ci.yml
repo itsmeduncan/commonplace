@@ -17,7 +17,7 @@ jobs:
     name: Validate config
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # consider pinning to a commit SHA
+      - uses: actions/checkout@v7 # consider pinning to a commit SHA
 
       - name: Validate docker-compose (placeholder env)
         run: |
@@ -36,7 +36,7 @@ jobs:
     name: Build MCP image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # consider pinning to a commit SHA
+      - uses: actions/checkout@v7 # consider pinning to a commit SHA
 
       # Builds commonplace-mcp:local end-to-end. Fails if the Anthropic SDK
       # install breaks or if patch_transport_security.py can't find its anchor
