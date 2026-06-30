@@ -20,9 +20,12 @@ When reporting, include: what you found, how to reproduce it, and the impact you
 `commonplace` is **designed to run on a trusted private network** (a Tailscale tailnet), and that
 assumption is baked into its defaults. Reports should account for this intended model:
 
-- **The MCP servers have no application-level authentication.** Access control is the tailnet:
-  anyone who can reach the ports can read and write the graphs. Do **not** port-forward `:8000` /
-  `:8001` / `:3000` to the public internet.
+- **The gateway requires a per-tier bearer token** (`PERSONAL_TOKEN` / `CLIENT_TOKEN`); requests
+  without the right token get `401`. Separate tokens enforce **tier isolation** — a client holding
+  only the client token cannot reach the personal (hosted-extraction) endpoint. This is access
+  control _on top of_ the tailnet, not a replacement for it: still do **not** port-forward `:8000` /
+  `:8001` / `:3000` to the public internet. The FalkorDB browser UI (`:3000`) has only its own
+  password, not the gateway token.
 - **The bundled `patch_transport_security.py` deliberately disables FastMCP's DNS-rebinding
   protection.** This is safe only because the network is the trust boundary and clients are agents,
   not browsers. The patch's docstring documents how to re-tighten it with an explicit `allowed_hosts`
@@ -33,8 +36,9 @@ assumption is baked into its defaults. Reports should account for this intended 
   Anthropic API for extraction by design; the client tier never leaves the host.
 
 Issues that are **in scope**: anything that breaks these guarantees — e.g. a config that leaks
-`.env`, a path that sends client-tier data off-box, or a way to reach the graphs from outside the
-tailnet under the documented setup.
+`.env`, a path that sends client-tier data off-box, a way to reach a tier without its bearer token
+(bypassing the gateway), or a way to reach the graphs from outside the tailnet under the documented
+setup.
 
 Issues that are **out of scope**: consequences of deploying contrary to the docs (e.g. exposing the
 ports publicly, disabling the FalkorDB password).
