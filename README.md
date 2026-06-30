@@ -2,27 +2,29 @@
 
 A self-hosted, two-tier [Graphiti](https://github.com/getzep/graphiti) knowledge graph that MCP
 clients (for example **Claude Code** and **Pi**) read from and write to over a private
-[Tailscale](https://tailscale.com) network. One privacy tier extracts with a hosted model for best
-quality; the other extracts entirely on a local GPU so confidential data never leaves the box.
+[Tailscale](https://tailscale.com) network. **It's offline-first: by default every part — including
+the LLM that extracts your graph — runs on your own hardware, so nothing leaves the box.**
 
-It runs on a single always-on Linux host with Docker and (optionally) a consumer NVIDIA GPU. Your
-laptops and other devices are pure clients — they host nothing.
+It runs on a single always-on Linux host with Docker and a consumer NVIDIA GPU. Your laptops and
+other devices are pure clients — they host nothing.
 
 ---
 
 ## Why two tiers
 
 Knowledge-graph ingestion uses an LLM to extract entities and relationships from text. That
-extraction is where your data is exposed to a model. `commonplace` splits memory by who is
-allowed to do that extraction:
+extraction is where your data would be exposed to a model — so by default `commonplace` does it
+**locally**, on your GPU, for both tiers. The two tiers split memory by confidentiality and by
+whether you're allowed to trade locality for quality:
 
-| Tier                    | Graph                  | Extraction model                   | Where it runs  | Use for                                                                 |
-| ----------------------- | ---------------------- | ---------------------------------- | -------------- | ----------------------------------------------------------------------- |
-| **personal**            | `commonplace_personal` | Claude Haiku 4.5 (hosted)          | Anthropic API  | your own notes, projects, life — best graph quality, pennies per ingest |
-| **client-confidential** | `commonplace_client`   | `mistral:7b-instruct-q4_0` (local) | the host's GPU | confidential, local-only material that must never leave the machine     |
+| Tier                    | Graph                  | Extraction (default)               | Where it runs  | Use for                                                                  |
+| ----------------------- | ---------------------- | ---------------------------------- | -------------- | ------------------------------------------------------------------------ |
+| **personal**            | `commonplace_personal` | `mistral:7b-instruct-q4_0` (local) | the host's GPU | your own notes, projects, life — _optionally_ a hosted model for quality |
+| **client-confidential** | `commonplace_client`   | `mistral:7b-instruct-q4_0` (local) | the host's GPU | confidential / NDA material that must **never** leave the machine        |
 
-The personal tier's extraction model is a default, not a lock-in: it's env-switchable to a local model
-too (see the _Local-only?_ note under [Setup](#setup)). The client tier is always local.
+The **personal** tier is local by default but may be pointed at a hosted model (e.g. Claude Haiku)
+for higher-quality graphs on **non-confidential** data — opt in via `.env` (see _Hosted upgrade?_
+under [Setup](#setup)). The **client** tier is always local; that's the whole point of it.
 
 **Retrieval is cheap and private on both tiers.** Search is embeddings + BM25 + graph traversal
 with **no LLM in the query path**. The GPU only ever does slow, asynchronous _background_
@@ -90,13 +92,13 @@ flowchart TB
 > Replace `your-server.your-tailnet.ts.net` with your host's Tailscale MagicDNS name throughout
 > (run `tailscale status` on the host to find it).
 
-| Tier        | Host endpoint (tailnet)                            | Internal port | Graph (`FALKORDB_DATABASE`) | LLM                        | `SEMAPHORE_LIMIT` |
-| ----------- | -------------------------------------------------- | ------------- | --------------------------- | -------------------------- | ----------------- |
-| personal    | `http://your-server.your-tailnet.ts.net:8000/mcp/` | 8000          | `commonplace_personal`      | `claude-haiku-4-5`         | 5                 |
-| client      | `http://your-server.your-tailnet.ts.net:8001/mcp/` | 8000          | `commonplace_client`        | `mistral:7b-instruct-q4_0` | 1                 |
-| FalkorDB    | `127.0.0.1:6379` (host-local only)                 | 6379          | both graphs                 | —                          | —                 |
-| FalkorDB UI | `http://your-server.your-tailnet.ts.net:3000`      | 3000          | browse either graph         | —                          | —                 |
-| Metrics     | `127.0.0.1:9180/metrics` (host-local only)         | 9180          | gateway (Prometheus)        | —                          | —                 |
+| Tier        | Host endpoint (tailnet)                            | Internal port | Graph (`FALKORDB_DATABASE`) | LLM                            | `SEMAPHORE_LIMIT` |
+| ----------- | -------------------------------------------------- | ------------- | --------------------------- | ------------------------------ | ----------------- |
+| personal    | `http://your-server.your-tailnet.ts.net:8000/mcp/` | 8000          | `commonplace_personal`      | `mistral:7b…` (local, default) | 1                 |
+| client      | `http://your-server.your-tailnet.ts.net:8001/mcp/` | 8000          | `commonplace_client`        | `mistral:7b-instruct-q4_0`     | 1                 |
+| FalkorDB    | `127.0.0.1:6379` (host-local only)                 | 6379          | both graphs                 | —                              | —                 |
+| FalkorDB UI | `http://your-server.your-tailnet.ts.net:3000`      | 3000          | browse either graph         | —                              | —                 |
+| Metrics     | `127.0.0.1:9180/metrics` (host-local only)         | 9180          | gateway (Prometheus)        | —                              | —                 |
 
 The personal/client endpoints require `Authorization: Bearer <tier-token>` (set `PERSONAL_TOKEN` /
 `CLIENT_TOKEN` in `.env`). A request without the right token gets `401`.
@@ -114,8 +116,8 @@ On the **host**:
   runs `mistral:7b-instruct-q4_0` comfortably; CPU-only works but local extraction is slow.
 - **[Tailscale](https://tailscale.com)** — the MCP endpoints are served over the tailnet, not the
   public internet.
-- An **Anthropic API key** — only for the hosted `personal` tier. The `client` tier is fully local
-  and needs no key.
+- **No API keys required.** Both tiers extract locally by default. An **Anthropic API key** is needed
+  _only_ if you opt the personal tier into a hosted model (see _Hosted upgrade?_ below).
 
 On each **client** (laptop, etc.): Tailscale, plus an MCP-capable client (Claude Code, Pi, …).
 
@@ -134,8 +136,8 @@ ollama pull mistral:7b-instruct-q4_0
 cp .env.example .env
 #    edit .env and set:
 #      FALKORDB_PASSWORD          (openssl rand -hex 24)
-#      ANTHROPIC_API_KEY          (for the personal tier)
 #      PERSONAL_TOKEN / CLIENT_TOKEN   gateway bearer tokens (openssl rand -hex 32 each)
+#    (no ANTHROPIC_API_KEY needed — extraction is local by default)
 
 # 3. Build the local image and start the stack
 docker compose up -d
@@ -144,10 +146,10 @@ docker compose ps        # all services should report healthy
 
 Then point a client at the two endpoints — see [Client configuration](#client-configuration).
 
-> **Local-only?** The personal tier defaults to hosted Haiku but is switchable. To run it entirely
-> on your GPU (like the client tier, no Anthropic key needed), set in `.env`:
-> `PERSONAL_LLM_PROVIDER=openai`, `PERSONAL_LLM_MODEL=mistral:7b-instruct-q4_0`, and
-> `PERSONAL_SEMAPHORE_LIMIT=1`. You trade graph quality for full locality.
+> **Hosted upgrade?** Everything is local by default. To point the **personal** tier at a hosted
+> model for higher-quality graphs (non-confidential data only), set in `.env`:
+> `PERSONAL_LLM_PROVIDER=anthropic`, `PERSONAL_LLM_MODEL=claude-haiku-4-5`,
+> `PERSONAL_SEMAPHORE_LIMIT=5`, and `ANTHROPIC_API_KEY=…`. The client tier stays local regardless.
 
 > **Upgrading from a pre-gateway deploy?** Add `PERSONAL_TOKEN` / `CLIENT_TOKEN` to `.env`, then
 > `docker compose up -d --build --force-recreate` (the MCP tiers move behind the gateway and the

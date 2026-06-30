@@ -12,17 +12,18 @@ server:
   port: 8000               # container-internal; compose maps host:8000 -> container:8000
 
 llm:
-  # Default = hosted Anthropic Haiku (best graph quality). To run the personal tier
-  # FULLY LOCAL like the client tier, set in .env:
-  #   PERSONAL_LLM_PROVIDER=openai
-  #   PERSONAL_LLM_MODEL=mistral:7b-instruct-q4_0
-  #   PERSONAL_SEMAPHORE_LIMIT=1   (don't hammer the single GPU — see docker-compose.yml)
-  # ANTHROPIC_API_KEY then becomes optional. Both provider blocks below always exist;
-  # `provider` selects which one is actually constructed.
-  provider: ${PERSONAL_LLM_PROVIDER:anthropic}   # "anthropic" (hosted) | "openai" (local Ollama)
-  model: ${PERSONAL_LLM_MODEL:claude-haiku-4-5}
+  # Default = LOCAL (mistral via Ollama). commonplace is offline-first — nothing leaves
+  # the box unless you opt in. To run the personal tier on a HOSTED model (better graph
+  # quality, for NON-confidential data only), set in .env:
+  #   PERSONAL_LLM_PROVIDER=anthropic
+  #   PERSONAL_LLM_MODEL=claude-haiku-4-5
+  #   PERSONAL_SEMAPHORE_LIMIT=5      (hosted has no GPU contention — see docker-compose.yml)
+  #   ANTHROPIC_API_KEY=sk-ant-...
+  # Both provider blocks below always exist; `provider` selects which one is constructed.
+  provider: ${PERSONAL_LLM_PROVIDER:openai}   # "openai" (local Ollama, default) | "anthropic" (hosted)
+  model: ${PERSONAL_LLM_MODEL:mistral:7b-instruct-q4_0}
   max_tokens: 4096
-  temperature: 0.0         # REQUIRED for Anthropic (400s on null temperature); harmless for the local path
+  temperature: 0.0         # harmless for the local path; REQUIRED if you switch to Anthropic (400s on null)
   providers:
     anthropic:
       api_key: ${ANTHROPIC_API_KEY:}   # empty default so local-only setups don't need a key

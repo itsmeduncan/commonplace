@@ -47,7 +47,7 @@ services:
       - FALKORDB_URI=redis://falkordb:6379
       - FALKORDB_DATABASE=commonplace_personal   # <-- this instance's graph
       - GRAPHITI_GROUP_ID=commonplace_personal
-      - SEMAPHORE_LIMIT=${PERSONAL_SEMAPHORE_LIMIT:-5}   # hosted Haiku=5 is fine; drop to 1 if you run this tier LOCAL
+      - SEMAPHORE_LIMIT=${PERSONAL_SEMAPHORE_LIMIT:-1}   # local default=1 (single GPU); raise to 5 if you switch this tier to HOSTED
       - GRAPHITI_TELEMETRY_ENABLED=false
       - CONFIG_PATH=/app/mcp/config/config.yaml
       - OPENAI_API_KEY=ollama                # dummy: graphiti-core builds a default OpenAI reranker at init; search uses RRF so it's never called, but it must construct
