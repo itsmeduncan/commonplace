@@ -33,13 +33,14 @@ only the load-bearing facts and points back to it.
   the `anthropic` SDK and rejects remote Host headers, so the Dockerfile adds the SDK and runs
   `patch_transport_security.py`. Use `:standalone`, never `:latest` (the latter bundles its own
   FalkorDB and can't share one).
-- **personal tier** (`config/personal.yaml`, host `:8000`) extracts with hosted Anthropic
-  `claude-haiku-4-5` **by default, but is env-switchable to local** — set `PERSONAL_LLM_PROVIDER=openai`
-  / `PERSONAL_LLM_MODEL=...` / `PERSONAL_SEMAPHORE_LIMIT=1` in `.env` to run it on the GPU like the
-  client tier (both provider blocks always exist in the config; `provider` picks one). **client tier**
-  (`config/client.yaml`, host `:8001`) extracts with local `mistral:7b-instruct-q4_0` on the GPU —
-  confidential data never leaves the box. Concurrency: `SEMAPHORE_LIMIT` 5 (personal, hosted) vs 1
-  (client, GPU-bound); both now env-overridable in `docker-compose.yml`.
+- **Offline-first.** Both tiers extract **locally** (`mistral:7b-instruct-q4_0` on the GPU) **by
+  default** — no API keys, nothing leaves the box. The **personal tier** (`config/personal.yaml`, host
+  `:8000`) is env-switchable to a HOSTED model for non-confidential data: set
+  `PERSONAL_LLM_PROVIDER=anthropic` / `PERSONAL_LLM_MODEL=claude-haiku-4-5` / `PERSONAL_SEMAPHORE_LIMIT=5`
+  / `ANTHROPIC_API_KEY` in `.env` (both provider blocks always exist; `provider` picks one). The
+  **client tier** (`config/client.yaml`, host `:8001`) is always local — confidential data never
+  leaves the box. Concurrency: `SEMAPHORE_LIMIT` defaults to 1 (GPU-bound); raise the personal tier to
+  5 if you switch it to hosted. Both env-overridable in `docker-compose.yml`.
 - **Gateway fronts both tiers.** The `gateway` service (Caddy, `gateway/Caddyfile`) owns host ports
   `:8000`/`:8001`; the MCP containers are internal-only (`expose`, no host ports). It enforces
   **per-tier bearer auth** (`PERSONAL_TOKEN`/`CLIENT_TOKEN`) — separate tokens = tier isolation — and
