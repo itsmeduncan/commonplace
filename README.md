@@ -419,8 +419,10 @@ Two things turn this from a memory _store_ into a memory _system agents use well
 `scripts/mcp_activity.sh` (and the Prometheus endpoint on `:9180`) show whether agents are _reading_.
 Seed an existing corpus with `scripts/ingest_markdown.py`, pull token-budgeted context with
 `scripts/recall.py`, gate retrieval quality with `eval/run_eval.py`, and review resolved
-contradictions with `scripts/contradictions.sh`. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's
-shipped vs. still open (a local reranker remains the notable deferral).
+contradictions with `scripts/contradictions.sh`. Over time, reclaim old raw episodes (keeping the
+facts derived from them) with `scripts/compact_episodes.sh` — report-only until `--apply`. See the
+[open issues](https://github.com/itsmeduncan/commonplace/issues) for what's still open (a local
+reranker remains the notable deferral).
 
 ---
 
@@ -440,14 +442,14 @@ commonplace/
 │   ├── commonplace              # operate CLI: `commonplace update` redeploys the stack
 │   ├── graph_stats.sh           # write counts per tier   · mcp_activity.sh  # read counts (gateway log)
 │   ├── recall.py                # token-budgeted recall    · contradictions.sh # superseded facts
+│   ├── compact_episodes.sh      # prune old raw episodes, keep facts (report-only until --apply)
 │   ├── backup.sh / restore.sh   # FalkorDB dump + restore
 │   └── ingest_markdown.py       # load a markdown corpus (notes/docs) into a tier
 ├── eval/
 │   ├── queries.yaml             # retrieval eval cases (question → expected facts)
 │   └── run_eval.py              # scores recall against a tier
 ├── docs/
-│   ├── memory-protocol.md       # how agents should read/write memory (tier safety, cite-back)
-│   └── ROADMAP.md               # hardening & maturity plan
+│   └── memory-protocol.md       # how agents should read/write memory (tier safety, cite-back)
 ├── .env.example                 # template; copy to .env on the host (gitignored)
 ├── .dockerignore                # keeps .env and other secrets out of the build context
 ├── CLAUDE.md                    # guidance for Claude Code working in this repo
