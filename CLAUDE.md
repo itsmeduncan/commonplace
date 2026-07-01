@@ -78,13 +78,14 @@ These trip up every edit — full explanations are in README §Gotchas:
   agents use memory.
 - **Tooling:** `scripts/graph_stats.sh` (write counts), `scripts/mcp_activity.sh` (read counts from
   gateway logs), `scripts/recall.py` (token-budgeted recall), `scripts/contradictions.sh` (superseded
-  facts), `scripts/backup.sh` / `restore.sh`, `scripts/ingest_markdown.py` (corpus → episodes),
-  `eval/run_eval.py` (retrieval recall). The MCP-client scripts take `--token`. MCP verbs:
+  facts), `scripts/compact_episodes.sh` (prune old `:Episodic` snippets, keep facts — report-only
+  until `--apply`), `scripts/backup.sh` / `restore.sh`, `scripts/ingest_markdown.py` (corpus →
+  episodes), `eval/run_eval.py` (retrieval recall). The MCP-client scripts take `--token`. MCP verbs:
   `add_memory(name, episode_body, group_id?, source, source_description?)`,
   `search_memory_facts(query, max_facts)`, `search_nodes(query, entity_types?)`.
 - **Deferred work** (local reranker, payload-level tier guard, per-agent identity, richer ontology) is
-  tracked in `docs/ROADMAP.md` — those need an image patch, not config. Read/auth/metrics/digest-pin
-  shipped via the gateway + Dockerfile.
+  tracked as [GitHub issues](https://github.com/itsmeduncan/commonplace/issues) — those need an image
+  patch, not config. Read/auth/metrics/digest-pin shipped via the gateway + Dockerfile.
 
 ## Commands (run on the host, from the repo directory, e.g. `~/commonplace`)
 
