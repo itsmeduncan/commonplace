@@ -53,6 +53,13 @@ graphiti:
   group_id: ${GRAPHITI_GROUP_ID:commonplace_personal}
   user_id: "mcp_user"
 
+  # Payload-level tier guard (opt-in, defense-in-depth over the gateway's token
+  # isolation). If set, add_memory REFUSES any write whose name/source_description/
+  # body matches this regex. Recommended when you switch this tier to HOSTED
+  # extraction, so confidential-tagged material can't reach the Anthropic API even
+  # if a client is misconfigured with both tokens. Matches only what you specify.
+  # reject_pattern: "(?i)\\b(confidential|nda|privileged|client-only)\\b"
+
   # --- Domain ontology (personal tier) ---
   # Each entry becomes a Pydantic model whose `description` is the extraction
   # instruction the LLM sees. Rich, trigger-pattern-style descriptions materially

@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `commonplace` is **infrastructure only** — a Docker Compose stack, two MCP config files, a
-Dockerfile, and three build-time patches. There is no application source, no test suite, and no lint
+Dockerfile, and four build-time patches. There is no application source, no test suite, and no lint
 step. It deploys a self-hosted, two-tier [Graphiti](https://github.com/getzep/graphiti) knowledge
 graph that Claude Code and Pi use as long-term memory over a Tailscale tailnet.
 
@@ -31,9 +31,10 @@ only the load-bearing facts and points back to it.
 - **Two MCP instances, one custom image.** `commonplace-mcp:local` is built locally from
   `zepai/knowledge-graph-mcp:standalone` (see `Dockerfile`) — the upstream `:standalone` image lacks
   the `anthropic` SDK and rejects remote Host headers, so the Dockerfile adds the SDK and runs
-  `patch_transport_security.py` (plus `patch_agent_identity.py` → `add_memory` `agent_id`, and
-  `patch_entity_fields.py` → optional typed entity fields in config). Use `:standalone`, never
-  `:latest` (the latter bundles its own FalkorDB and can't share one).
+  `patch_transport_security.py` (plus `patch_agent_identity.py` → `add_memory` `agent_id`,
+  `patch_entity_fields.py` → optional typed entity fields, and `patch_content_guard.py` →
+  `reject_pattern` tier guard). Use `:standalone`, never `:latest` (the latter bundles its own
+  FalkorDB and can't share one).
 - **Offline-first.** Both tiers extract **locally** (`mistral:7b-instruct-q4_0` on the GPU) **by
   default** — no API keys, nothing leaves the box. The **personal tier** (`config/personal.yaml`, host
   `:8000`) is env-switchable to a HOSTED model for non-confidential data: set
@@ -46,7 +47,9 @@ only the load-bearing facts and points back to it.
   `:8000`/`:8001`; the MCP containers are internal-only (`expose`, no host ports). It enforces
   **per-tier bearer auth** (`PERSONAL_TOKEN`/`CLIENT_TOKEN`) — separate tokens = tier isolation — and
   emits JSON access logs (audit) + Prometheus metrics (`:9180`, host-local). Clients must send
-  `Authorization: Bearer <token>`.
+  `Authorization: Bearer <token>`. Optional defense-in-depth: set `graphiti.reject_pattern` (a regex)
+  in a tier's config and `add_memory` refuses matching content (payload-level guard, via
+  `patch_content_guard.py`) — e.g. the personal tier rejecting confidential-tagged writes.
 - **Shared embedder.** Both tiers use Ollama `nomic-embed-text` (768-dim). Do **not** change the
   embedder on only one tier — vectors from different embedders are not comparable.
 - **MCP path has a trailing slash: `/mcp/`** (FastMCP default, not configurable). FalkorDB UI is on
@@ -86,7 +89,7 @@ These trip up every edit — full explanations are in README §Gotchas:
   `add_memory(name, episode_body, group_id?, source, source_description?, agent_id?)` (`agent_id`
   attributes the write to an agent via `source_description` — added by `patch_agent_identity.py`),
   `search_memory_facts(query, max_facts)`, `search_nodes(query, entity_types?)`.
-- **Deferred work** (local reranker, payload-level tier guard) is
+- **Deferred work** (local reranker) is
   tracked as [GitHub issues](https://github.com/itsmeduncan/commonplace/issues) — those need an image
   patch, not config. Read/auth/metrics/digest-pin shipped via the gateway + Dockerfile.
 

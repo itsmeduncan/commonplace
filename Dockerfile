@@ -30,3 +30,8 @@ RUN /app/mcp/.venv/bin/python /tmp/patch_agent_identity.py
 #    See patch_entity_fields.py. Fails the build if its anchors drift (issue #14).
 COPY patch_entity_fields.py /tmp/patch_entity_fields.py
 RUN /app/mcp/.venv/bin/python /tmp/patch_entity_fields.py
+
+# 5) Payload-level tier guard: add_memory refuses content matching graphiti.reject_pattern.
+#    See patch_content_guard.py. Fails the build if its anchors drift (issue #11).
+COPY patch_content_guard.py /tmp/patch_content_guard.py
+RUN /app/mcp/.venv/bin/python /tmp/patch_content_guard.py

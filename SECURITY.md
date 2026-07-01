@@ -26,6 +26,10 @@ assumption is baked into its defaults. Reports should account for this intended 
   control _on top of_ the tailnet, not a replacement for it: still do **not** port-forward `:8000` /
   `:8001` / `:3000` to the public internet. The FalkorDB browser UI (`:3000`) has only its own
   password, not the gateway token.
+- **Optional payload-level tier guard (defense-in-depth).** A tier can set `graphiti.reject_pattern`
+  (a regex) so `add_memory` refuses content matching it — e.g. the personal/hosted tier rejecting
+  confidential-tagged material. This backstops the token isolation above for the case of a client
+  misconfigured with both tokens; it is opt-in and matches only what you tell it to.
 - **The bundled `patch_transport_security.py` deliberately disables FastMCP's DNS-rebinding
   protection.** This is safe only because the network is the trust boundary and clients are agents,
   not browsers. The patch's docstring documents how to re-tighten it with an explicit `allowed_hosts`
