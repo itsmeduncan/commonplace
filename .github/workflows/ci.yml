@@ -30,7 +30,7 @@ jobs:
           python3 -c "import yaml, glob; [yaml.safe_load(open(f)) for f in glob.glob('config/*.yaml')]"
 
       - name: Syntax-check the build-time patches
-        run: python3 -m py_compile patch_transport_security.py patch_agent_identity.py patch_entity_fields.py
+        run: python3 -m py_compile patch_transport_security.py patch_agent_identity.py patch_entity_fields.py patch_content_guard.py
 
   build:
     name: Build MCP image
