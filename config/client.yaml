@@ -46,9 +46,10 @@ graphiti:
   user_id: "mcp_user"
 
   # --- Domain ontology (client-confidential tier) ---
-  # Tuned for confidential / engagement work rather than personal life. Same
-  # config schema (name + description only). The local extractor (mistral:7b) is
-  # weak, so these descriptions carry extra weight — keep them concrete.
+  # Tuned for confidential / engagement work rather than personal life. Entries
+  # are name + description, optionally with typed `fields:` (all Optional). The
+  # local extractor (mistral:7b) is weak, so these descriptions carry extra
+  # weight — keep them concrete.
   entity_types:
     - name: Preference
       description: >-
@@ -76,20 +77,38 @@ graphiti:
         A concrete artifact owed to the client — a report, system, model,
         document, or milestone. Capture what it is and its status or due date if
         mentioned.
+      fields:
+        - name: status
+          description: Current status if stated (e.g. planned, in progress, delivered).
+        - name: due_date
+          description: The due date or milestone date, if stated.
     - name: Requirement
       description: >-
         A specific need the solution must fulfill. Trigger patterns: "must have
         X", "X is required", "needs to Y". Capture the requirement and link it to
         the Engagement. Note priority if stated.
+      fields:
+        - name: priority
+          description: Priority if stated (e.g. critical, high, medium, low).
     - name: Decision
       description: >-
         A choice made during the engagement, ideally with rationale. Trigger
         patterns: "we decided X", "agreed to Y", "ruled out Z". Capture what was
         decided, why, and who decided.
+      fields:
+        - name: rationale
+          description: Why the decision was made, if a reason is stated.
+        - name: decided_by
+          description: Who made or owns the decision, if stated.
     - name: Risk
       description: >-
         A potential problem, blocker, dependency, or concern that could affect
         delivery. Capture the risk and any mitigation or owner mentioned.
+      fields:
+        - name: mitigation
+          description: The mitigation or plan to address the risk, if stated.
+        - name: owner
+          description: Who owns or is tracking the risk, if stated.
     - name: SystemComponent
       description: >-
         A piece of the client's technical environment — a service, database,

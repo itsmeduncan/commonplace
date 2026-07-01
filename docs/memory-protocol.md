@@ -50,7 +50,9 @@ After you learn something that will matter **beyond this session**, call `add_me
   prose — it gives the extractor better signal, which matters because the client tier's local model
   is weak. Include a source and timestamp when you can.
 - **Match the ontology:** the tiers define entity types (Preference, Project, Person, Decision,
-  Engagement, Requirement, …). Phrase memories so those types are extractable.
+  Engagement, Requirement, …), some with typed fields (e.g. a Decision's rationale, a Deliverable's
+  due date, a Risk's owner). Phrase memories so those types — and, when you know them, those field
+  values — are extractable.
 - **Scope by project:** pass a `group_id` to keep a project's memory in its own namespace within the
   tier (e.g. `group_id="acme-redesign"`). This makes later recall filterable and keeps unrelated
   projects from bleeding together. Omit it for general/personal memory.
