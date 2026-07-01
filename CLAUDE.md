@@ -31,7 +31,8 @@ only the load-bearing facts and points back to it.
 - **Two MCP instances, one custom image.** `commonplace-mcp:local` is built locally from
   `zepai/knowledge-graph-mcp:standalone` (see `Dockerfile`) — the upstream `:standalone` image lacks
   the `anthropic` SDK and rejects remote Host headers, so the Dockerfile adds the SDK and runs
-  `patch_transport_security.py`. Use `:standalone`, never `:latest` (the latter bundles its own
+  `patch_transport_security.py` (plus `patch_agent_identity.py`, which adds the `add_memory`
+  `agent_id` param). Use `:standalone`, never `:latest` (the latter bundles its own
   FalkorDB and can't share one).
 - **Offline-first.** Both tiers extract **locally** (`mistral:7b-instruct-q4_0` on the GPU) **by
   default** — no API keys, nothing leaves the box. The **personal tier** (`config/personal.yaml`, host
@@ -81,9 +82,10 @@ These trip up every edit — full explanations are in README §Gotchas:
   facts), `scripts/compact_episodes.sh` (prune old `:Episodic` snippets, keep facts — report-only
   until `--apply`), `scripts/backup.sh` / `restore.sh`, `scripts/ingest_markdown.py` (corpus →
   episodes), `eval/run_eval.py` (retrieval recall). The MCP-client scripts take `--token`. MCP verbs:
-  `add_memory(name, episode_body, group_id?, source, source_description?)`,
+  `add_memory(name, episode_body, group_id?, source, source_description?, agent_id?)` (`agent_id`
+  attributes the write to an agent via `source_description` — added by `patch_agent_identity.py`),
   `search_memory_facts(query, max_facts)`, `search_nodes(query, entity_types?)`.
-- **Deferred work** (local reranker, payload-level tier guard, per-agent identity, richer ontology) is
+- **Deferred work** (local reranker, payload-level tier guard, richer ontology) is
   tracked as [GitHub issues](https://github.com/itsmeduncan/commonplace/issues) — those need an image
   patch, not config. Read/auth/metrics/digest-pin shipped via the gateway + Dockerfile.
 

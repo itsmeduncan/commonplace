@@ -54,6 +54,9 @@ After you learn something that will matter **beyond this session**, call `add_me
 - **Scope by project:** pass a `group_id` to keep a project's memory in its own namespace within the
   tier (e.g. `group_id="acme-redesign"`). This makes later recall filterable and keeps unrelated
   projects from bleeding together. Omit it for general/personal memory.
+- **Identify yourself:** pass an `agent_id` (e.g. `agent_id="claude-code"`, `agent_id="pi"`) so the
+  write is attributed to you. It's recorded in the episode's `source_description` — an audit trail of
+  which agent wrote what. Optional and backward-compatible; omit it and writes stay anonymous.
 
 ## Make leverage visible — CITE what you used
 

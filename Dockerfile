@@ -20,3 +20,8 @@ RUN cd /app/mcp && uv pip install anthropic
 #    See patch_transport_security.py for the full rationale. Fails the build if it can't patch.
 COPY patch_transport_security.py /tmp/patch_transport_security.py
 RUN /app/mcp/.venv/bin/python /tmp/patch_transport_security.py
+
+# 3) Add per-agent identity to add_memory (optional agent_id → source_description attribution).
+#    See patch_agent_identity.py. Fails the build if its anchors drift (issue #13).
+COPY patch_agent_identity.py /tmp/patch_agent_identity.py
+RUN /app/mcp/.venv/bin/python /tmp/patch_agent_identity.py
