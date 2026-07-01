@@ -1,6 +1,6 @@
 # commonplace — PERSONAL tier (MCP instance A, host port 8000)
 #
-# Extraction : hosted Claude Haiku 4.5  (best graph quality, pennies per ingest; the host has internet)
+# Extraction : LOCAL mistral:7b by default (offline-first); switchable to hosted Claude Haiku via .env
 # Embedder   : Ollama nomic-embed-text (768-dim) — SHARED with the client tier, do not change
 # Graph      : commonplace_personal     (one of two graphs in the shared FalkorDB)
 #
