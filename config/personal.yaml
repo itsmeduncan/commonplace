@@ -56,9 +56,10 @@ graphiti:
   # --- Domain ontology (personal tier) ---
   # Each entry becomes a Pydantic model whose `description` is the extraction
   # instruction the LLM sees. Rich, trigger-pattern-style descriptions materially
-  # improve extraction precision. The MCP config schema only supports name +
-  # description (no typed fields). Keep this in sync with config/client.yaml's
-  # shared types so the two graphs stay queryable the same way.
+  # improve extraction precision. An entry may also declare optional typed
+  # `fields:` (name/type/description; all Optional) to capture structured
+  # attributes. Keep this in sync with config/client.yaml's shared types so the
+  # two graphs stay queryable the same way.
   entity_types:
     - name: Preference
       description: >-

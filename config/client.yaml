@@ -46,9 +46,10 @@ graphiti:
   user_id: "mcp_user"
 
   # --- Domain ontology (client-confidential tier) ---
-  # Tuned for confidential / engagement work rather than personal life. Same
-  # config schema (name + description only). The local extractor (mistral:7b) is
-  # weak, so these descriptions carry extra weight — keep them concrete.
+  # Tuned for confidential / engagement work rather than personal life. Entries
+  # are name + description, optionally with typed `fields:` (all Optional). The
+  # local extractor (mistral:7b) is weak, so these descriptions carry extra
+  # weight — keep them concrete.
   entity_types:
     - name: Preference
       description: >-
