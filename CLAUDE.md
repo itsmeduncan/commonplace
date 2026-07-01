@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `commonplace` is **infrastructure only** — a Docker Compose stack, two MCP config files, a
-Dockerfile, and four build-time patches. There is no application source, no test suite, and no lint
+Dockerfile, and five build-time patches. There is no application source, no test suite, and no lint
 step. It deploys a self-hosted, two-tier [Graphiti](https://github.com/getzep/graphiti) knowledge
 graph that Claude Code and Pi use as long-term memory over a Tailscale tailnet.
 
@@ -32,8 +32,9 @@ only the load-bearing facts and points back to it.
   `zepai/knowledge-graph-mcp:standalone` (see `Dockerfile`) — the upstream `:standalone` image lacks
   the `anthropic` SDK and rejects remote Host headers, so the Dockerfile adds the SDK and runs
   `patch_transport_security.py` (plus `patch_agent_identity.py` → `add_memory` `agent_id`,
-  `patch_entity_fields.py` → optional typed entity fields, and `patch_content_guard.py` →
-  `reject_pattern` tier guard). Use `:standalone`, never `:latest` (the latter bundles its own
+  `patch_entity_fields.py` → optional typed entity fields, `patch_content_guard.py` →
+  `reject_pattern` tier guard, and `patch_queue_backpressure.py` → `max_queue_size` GPU
+  backpressure). Use `:standalone`, never `:latest` (the latter bundles its own
   FalkorDB and can't share one).
 - **Offline-first.** Both tiers extract **locally** (`mistral:7b-instruct-q4_0` on the GPU) **by
   default** — no API keys, nothing leaves the box. The **personal tier** (`config/personal.yaml`, host
@@ -42,7 +43,9 @@ only the load-bearing facts and points back to it.
   / `ANTHROPIC_API_KEY` in `.env` (both provider blocks always exist; `provider` picks one). The
   **client tier** (`config/client.yaml`, host `:8001`) is always local — confidential data never
   leaves the box. Concurrency: `SEMAPHORE_LIMIT` defaults to 1 (GPU-bound); raise the personal tier to
-  5 if you switch it to hosted. Both env-overridable in `docker-compose.yml`.
+  5 if you switch it to hosted. Both env-overridable in `docker-compose.yml`. Optional GPU
+  backpressure: set `graphiti.max_queue_size` and `add_memory` refuses new episodes once that many are
+  pending (via `patch_queue_backpressure.py`); 0 = unbounded (default).
 - **Gateway fronts both tiers.** The `gateway` service (Caddy, `gateway/Caddyfile`) owns host ports
   `:8000`/`:8001`; the MCP containers are internal-only (`expose`, no host ports). It enforces
   **per-tier bearer auth** (`PERSONAL_TOKEN`/`CLIENT_TOKEN`) — separate tokens = tier isolation — and

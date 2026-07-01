@@ -45,6 +45,14 @@ graphiti:
   group_id: ${GRAPHITI_GROUP_ID:commonplace_client}
   user_id: "mcp_user"
 
+  # GPU queue backpressure (opt-in). Extraction is GPU-bound and runs one episode
+  # at a time (SEMAPHORE_LIMIT=1), so a burst of add_memory calls queues unbounded.
+  # Set a cap and add_memory refuses new episodes once this many are pending,
+  # returning a "retry shortly" error instead of growing memory. 0 = unbounded
+  # (default). Leave at 0 during bulk backfill (scripts/ingest_markdown.py) or pace
+  # the ingest, since a cap will reject once saturated. Applies to any tier.
+  # max_queue_size: 256
+
   # --- Domain ontology (client-confidential tier) ---
   # Tuned for confidential / engagement work rather than personal life. Entries
   # are name + description, optionally with typed `fields:` (all Optional). The

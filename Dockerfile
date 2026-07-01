@@ -35,3 +35,8 @@ RUN /app/mcp/.venv/bin/python /tmp/patch_entity_fields.py
 #    See patch_content_guard.py. Fails the build if its anchors drift (issue #11).
 COPY patch_content_guard.py /tmp/patch_content_guard.py
 RUN /app/mcp/.venv/bin/python /tmp/patch_content_guard.py
+
+# 6) GPU queue backpressure: add_memory refuses new episodes when a group's queue is full.
+#    See patch_queue_backpressure.py. Fails the build if its anchors drift (issue #12).
+COPY patch_queue_backpressure.py /tmp/patch_queue_backpressure.py
+RUN /app/mcp/.venv/bin/python /tmp/patch_queue_backpressure.py
