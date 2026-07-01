@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `commonplace` is **infrastructure only** — a Docker Compose stack, two MCP config files, a
-Dockerfile, and one build-time patch. There is no application source, no test suite, and no lint
+Dockerfile, and two build-time patches. There is no application source, no test suite, and no lint
 step. It deploys a self-hosted, two-tier [Graphiti](https://github.com/getzep/graphiti) knowledge
 graph that Claude Code and Pi use as long-term memory over a Tailscale tailnet.
 
