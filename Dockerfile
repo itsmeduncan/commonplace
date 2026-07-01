@@ -25,3 +25,8 @@ RUN /app/mcp/.venv/bin/python /tmp/patch_transport_security.py
 #    See patch_agent_identity.py. Fails the build if its anchors drift (issue #13).
 COPY patch_agent_identity.py /tmp/patch_agent_identity.py
 RUN /app/mcp/.venv/bin/python /tmp/patch_agent_identity.py
+
+# 4) Let config entity types declare optional TYPED fields (e.g. Decision.rationale).
+#    See patch_entity_fields.py. Fails the build if its anchors drift (issue #14).
+COPY patch_entity_fields.py /tmp/patch_entity_fields.py
+RUN /app/mcp/.venv/bin/python /tmp/patch_entity_fields.py

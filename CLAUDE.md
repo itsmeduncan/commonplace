@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `commonplace` is **infrastructure only** — a Docker Compose stack, two MCP config files, a
-Dockerfile, and two build-time patches. There is no application source, no test suite, and no lint
+Dockerfile, and three build-time patches. There is no application source, no test suite, and no lint
 step. It deploys a self-hosted, two-tier [Graphiti](https://github.com/getzep/graphiti) knowledge
 graph that Claude Code and Pi use as long-term memory over a Tailscale tailnet.
 
@@ -31,9 +31,9 @@ only the load-bearing facts and points back to it.
 - **Two MCP instances, one custom image.** `commonplace-mcp:local` is built locally from
   `zepai/knowledge-graph-mcp:standalone` (see `Dockerfile`) — the upstream `:standalone` image lacks
   the `anthropic` SDK and rejects remote Host headers, so the Dockerfile adds the SDK and runs
-  `patch_transport_security.py` (plus `patch_agent_identity.py`, which adds the `add_memory`
-  `agent_id` param). Use `:standalone`, never `:latest` (the latter bundles its own
-  FalkorDB and can't share one).
+  `patch_transport_security.py` (plus `patch_agent_identity.py` → `add_memory` `agent_id`, and
+  `patch_entity_fields.py` → optional typed entity fields in config). Use `:standalone`, never
+  `:latest` (the latter bundles its own FalkorDB and can't share one).
 - **Offline-first.** Both tiers extract **locally** (`mistral:7b-instruct-q4_0` on the GPU) **by
   default** — no API keys, nothing leaves the box. The **personal tier** (`config/personal.yaml`, host
   `:8000`) is env-switchable to a HOSTED model for non-confidential data: set
@@ -70,10 +70,11 @@ These trip up every edit — full explanations are in README §Gotchas:
 
 ## Memory model & tooling
 
-- **Ontology lives in config.** Each tier's `config/*.yaml` defines `graphiti.entity_types`
-  (`name` + `description` only — the server builds a Pydantic model per type from the description, so
-  the description IS the extraction instruction). Edit these to tune what gets captured; keep the
-  tiers' shared types aligned.
+- **Ontology lives in config.** Each tier's `config/*.yaml` defines `graphiti.entity_types` (`name` +
+  `description`, so the description IS the extraction instruction). An entity may also declare optional
+  typed `fields:` (`name`/`type`/`description`; `type` ∈ str|int|float|bool, default str) — enabled by
+  `patch_entity_fields.py`. Fields are always Optional so the weak local model is never forced to fill
+  one. Edit these to tune what gets captured; keep the tiers' shared types aligned.
 - **Agent behavior is documented, not coded.** `docs/memory-protocol.md` is the read/write contract
   (search-first, write durable facts, **never cross tiers**, cite-back). Change it to change how
   agents use memory.
@@ -85,7 +86,7 @@ These trip up every edit — full explanations are in README §Gotchas:
   `add_memory(name, episode_body, group_id?, source, source_description?, agent_id?)` (`agent_id`
   attributes the write to an agent via `source_description` — added by `patch_agent_identity.py`),
   `search_memory_facts(query, max_facts)`, `search_nodes(query, entity_types?)`.
-- **Deferred work** (local reranker, payload-level tier guard, richer ontology) is
+- **Deferred work** (local reranker, payload-level tier guard) is
   tracked as [GitHub issues](https://github.com/itsmeduncan/commonplace/issues) — those need an image
   patch, not config. Read/auth/metrics/digest-pin shipped via the gateway + Dockerfile.
 

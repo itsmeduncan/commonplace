@@ -409,7 +409,9 @@ Two things turn this from a memory _store_ into a memory _system agents use well
 - **Per-tier ontology.** Each tier defines `graphiti.entity_types` in its config (personal:
   Preference, Project, Person, Decision, …; client: Engagement, Stakeholder, Requirement, Risk, …).
   These type descriptions constrain extraction — the single biggest lever on graph quality, and they
-  help the weak local model the most.
+  help the weak local model the most. An entity can also declare optional typed `fields:` (e.g.
+  `Decision.rationale`, `Deliverable.due_date`) to capture structured attributes; fields are always
+  optional, so a value the extractor can't find is simply left empty.
 - **An agent protocol.** [`docs/memory-protocol.md`](docs/memory-protocol.md) is the contract for any
   client (Claude Code, Pi): search before answering, write durable facts, **never cross tiers** (no
   confidential data on the hosted personal tier), and cite what you used. Install it as a skill or

@@ -91,11 +91,21 @@ graphiti:
         A choice the user made or committed to, especially with a rationale.
         Trigger patterns: "we decided to X", "going with X because Y", "ruled
         out Z". Capture what was decided and why; link to the project it affects.
+      fields:
+        - name: rationale
+          description: Why the decision was made, if a reason is stated.
+        - name: decided_at
+          description: When the decision was made, if stated (a date or phrase).
     - name: Goal
       description: >-
         Something the user is trying to achieve, an objective or desired
         outcome, often time-bound. Capture the goal and any deadline or success
         criterion mentioned.
+      fields:
+        - name: deadline
+          description: The target date or timeframe, if stated.
+        - name: success_criterion
+          description: How success is measured, if stated.
     - name: Topic
       description: >-
         A subject, concept, or area of interest the user is learning about or
