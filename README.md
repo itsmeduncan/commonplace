@@ -144,7 +144,10 @@ docker compose up -d
 docker compose ps        # all services should report healthy
 ```
 
-Then point a client at the two endpoints — see [Client configuration](#client-configuration).
+Two client-side steps follow, both under [Client configuration](#client-configuration): **(1)** wire
+the two MCP endpoints, and **(2) install the memory protocol** into each client. Step 2 is
+**required** — wiring the servers only gives the agent the tools; without the protocol it never calls
+them and **the graph stays empty**.
 
 > **Hosted upgrade?** Everything is local by default. To point the **personal** tier at a hosted
 > model for higher-quality graphs (non-confidential data only), set in `.env`:
@@ -384,6 +387,24 @@ this server doesn't support. The extension lazy-connects by default — set
 }
 ```
 
+### Install the memory protocol (REQUIRED — or the graph stays empty)
+
+Wiring the MCP servers above only gives the agent the **tools**. Models do **not** call memory on
+their own — you must also install the read/write **behavior**, or agents have the capability and
+never use it (both graphs stay empty even though everything is "configured"). Install
+[`docs/memory-protocol.md`](docs/memory-protocol.md) as an always-on instruction in **each** client:
+
+- **Claude Code** — paste it into `~/.claude/CLAUDE.md` (global, applies to every project) or add it
+  as an always-loaded skill.
+- **Pi** — add it to Pi's **system prompt**. The `mcp.json` above only wires the server, not the
+  behavior.
+
+Keep all clients on the same protocol so their writes compose. Then confirm it's actually working:
+`scripts/graph_stats.sh` should show node/edge counts **climbing** as you work, and
+`scripts/mcp_activity.sh` (gateway logs) shows reads/writes per tier. Flat counts = the protocol
+isn't installed or isn't being followed. Note that even with it installed, current models won't call
+memory on every turn — it nudges, it doesn't guarantee.
+
 ---
 
 ## Adding another client
@@ -396,9 +417,11 @@ server. To add one:
 2. For Claude Code, run the two `claude mcp add … /mcp/` commands above (user scope).
 3. For any MCP client, add both servers with `"type": "http"` pointing at
    `:8000/mcp/` and `:8001/mcp/`.
-4. Nothing to change on the host — graphs and auth are shared; reads/writes from the new client
+4. **Install the memory protocol** on the new client (see [Client configuration](#client-configuration)) —
+   the tools alone won't make it read or write; without the protocol the new client just sits idle.
+5. Nothing to change on the host — graphs and auth are shared; reads/writes from the new client
    land in the same two graphs.
-5. For HTTPS, expose via `tailscale serve` (above) and use the `https://…` URLs instead.
+6. For HTTPS, expose via `tailscale serve` (above) and use the `https://…` URLs instead.
 
 ---
 
