@@ -449,7 +449,8 @@ commonplace/
 │   └── ingest_markdown.py       # load a markdown corpus (notes/docs) into a tier
 ├── eval/
 │   ├── queries.yaml             # retrieval eval cases (question → expected facts)
-│   └── run_eval.py              # scores recall against a tier
+│   ├── run_eval.py              # scores recall against a tier
+│   └── rerank_bench.py          # RRF-vs-reranker benchmark (MRR/recall@k/nDCG@k) — reranker gate
 ├── docs/
 │   └── memory-protocol.md       # how agents should read/write memory (tier safety, cite-back)
 ├── .env.example                 # template; copy to .env on the host (gitignored)

@@ -82,7 +82,8 @@ These trip up every edit — full explanations are in README §Gotchas:
   gateway logs), `scripts/recall.py` (token-budgeted recall), `scripts/contradictions.sh` (superseded
   facts), `scripts/compact_episodes.sh` (prune old `:Episodic` snippets, keep facts — report-only
   until `--apply`), `scripts/backup.sh` / `restore.sh`, `scripts/ingest_markdown.py` (corpus →
-  episodes), `eval/run_eval.py` (retrieval recall). The MCP-client scripts take `--token`. MCP verbs:
+  episodes), `eval/run_eval.py` (retrieval recall), `eval/rerank_bench.py` (RRF-vs-reranker
+  benchmark — the gate before building a reranker, #10). The MCP-client scripts take `--token`. MCP verbs:
   `add_memory(name, episode_body, group_id?, source, source_description?, agent_id?)` (`agent_id`
   attributes the write to an agent via `source_description` — added by `patch_agent_identity.py`),
   `search_memory_facts(query, max_facts)`, `search_nodes(query, entity_types?)`.
