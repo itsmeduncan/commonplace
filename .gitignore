@@ -7,6 +7,7 @@
 # Secrets & host-local config — NEVER commit. The stack's secrets live only in .env on the host.
 .env
 *.env
+.env.bak.*          # timestamped backups written by `commonplace rotate` — contain live secrets
 !.env.example
 
 # FalkorDB backups / dumps

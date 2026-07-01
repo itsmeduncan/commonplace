@@ -19,6 +19,10 @@ commonplace — operate the stack
                                  recreate the services so config/ontology changes
                                  take effect. --reset hard-resets to origin/main
                                  (use after the repo history was force-pushed).
+  commonplace rotate <target>    Regenerate a secret in .env and recreate the
+                                 services that use it. Targets: falkordb,
+                                 personal-token, client-token, tokens, all.
+                                 Backs up .env first. `rotate help` for details.
   commonplace status             docker compose ps + graph counts.
   commonplace help               This message.
 
@@ -73,10 +77,113 @@ cmd_status() {
 	fi
 }
 
+rotate_usage() {
+	cat <<'USAGE'
+commonplace rotate <target> — regenerate a self-generated secret in .env and
+recreate the services that use it. Backs up .env to .env.bak.<timestamp> first
+(gitignored; delete it once the stack is confirmed healthy).
+
+  targets:
+    falkordb        FALKORDB_PASSWORD  -> recreates falkordb + both mcp instances
+    personal-token  PERSONAL_TOKEN     -> recreates gateway (update your clients!)
+    client-token    CLIENT_TOKEN       -> recreates gateway (update your clients!)
+    tokens          both bearer tokens -> recreates gateway (update your clients!)
+    all             falkordb + both tokens
+
+ANTHROPIC_API_KEY is issued by Anthropic, not generated here — rotate it by hand:
+paste the new key into .env, then `docker compose up -d --force-recreate mcp-personal`.
+USAGE
+}
+
+# _rotate_key KEY BYTES — replace KEY's value in .env with `openssl rand -hex BYTES`.
+_rotate_key() {
+	local key="$1" bytes="$2" val
+	val="$(openssl rand -hex "$bytes")"
+	if grep -q "^${key}=" .env; then
+		sed -i "s|^${key}=.*|${key}=${val}|" .env
+	else
+		printf '%s=%s\n' "$key" "$val" >>.env
+	fi
+	echo "==> rotated ${key} (now ends …${val: -6})"
+}
+
+_warn_clients() {
+	echo "!! bearer token(s) changed — every client (Claude Code, Pi, scripts using"
+	echo "   --token) must be updated with the new value from .env, or it will 401."
+}
+
+cmd_rotate() {
+	local target="${1:-}"
+	case "$target" in
+		"" | -h | --help | help)
+			rotate_usage
+			return 0
+			;;
+		falkordb | personal-token | client-token | tokens | all) ;;
+		*)
+			echo "error: unknown rotate target '$target' (see: commonplace rotate help)" >&2
+			exit 1
+			;;
+	esac
+
+	cd "$REPO"
+	require_env
+	command -v openssl >/dev/null || {
+		echo "error: openssl not found — needed to generate secrets." >&2
+		exit 1
+	}
+
+	local stamp
+	stamp="$(date +%Y%m%d-%H%M%S)"
+	cp .env ".env.bak.$stamp"
+	echo "==> backed up .env -> .env.bak.$stamp"
+
+	local -a recreate=()
+	case "$target" in
+		falkordb)
+			_rotate_key FALKORDB_PASSWORD 24
+			recreate=(falkordb mcp-personal mcp-client)
+			;;
+		personal-token)
+			_rotate_key PERSONAL_TOKEN 32
+			recreate=(gateway)
+			_warn_clients
+			;;
+		client-token)
+			_rotate_key CLIENT_TOKEN 32
+			recreate=(gateway)
+			_warn_clients
+			;;
+		tokens)
+			_rotate_key PERSONAL_TOKEN 32
+			_rotate_key CLIENT_TOKEN 32
+			recreate=(gateway)
+			_warn_clients
+			;;
+		all)
+			_rotate_key FALKORDB_PASSWORD 24
+			_rotate_key PERSONAL_TOKEN 32
+			_rotate_key CLIENT_TOKEN 32
+			recreate=(falkordb mcp-personal mcp-client gateway)
+			_warn_clients
+			;;
+	esac
+
+	echo "==> recreating: ${recreate[*]}"
+	docker compose up -d --force-recreate "${recreate[@]}"
+	echo "==> status"
+	docker compose ps
+	echo "==> done. Old secrets are in .env.bak.$stamp — delete it once the stack is healthy."
+}
+
 case "${1:-help}" in
 	update)
 		shift
 		cmd_update "${1:-}"
+		;;
+	rotate)
+		shift
+		cmd_rotate "${1:-}"
 		;;
 	status) cmd_status ;;
 	help | -h | --help) usage ;;

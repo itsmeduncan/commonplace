@@ -226,8 +226,25 @@ Run on the host, from the repo directory (e.g. `~/commonplace`).
 ```bash
 commonplace update           # sync repo, rebuild image, recreate config-sensitive services
 commonplace update --reset   # same, but hard-reset to origin/main (after a force-push)
+commonplace rotate tokens    # regenerate a secret in .env + recreate the services that use it
 commonplace status           # service health + graph counts
 ```
+
+**Rotating secrets** — `commonplace rotate <target>` regenerates a self-generated secret in `.env`
+and recreates only the services that use it (it backs up `.env` to a gitignored `.env.bak.<stamp>`
+first):
+
+```bash
+commonplace rotate falkordb        # FALKORDB_PASSWORD → recreates falkordb + both mcp instances
+commonplace rotate personal-token  # PERSONAL_TOKEN    → recreates gateway (update your clients!)
+commonplace rotate client-token    # CLIENT_TOKEN      → recreates gateway (update your clients!)
+commonplace rotate tokens          # both bearer tokens
+commonplace rotate all             # FALKORDB_PASSWORD + both tokens
+```
+
+Rotating a bearer token invalidates the old one, so **every client must be updated** with the new
+value or it will get `401`. `ANTHROPIC_API_KEY` is issued by Anthropic, not generated here — rotate
+it by hand: paste the new key into `.env`, then `docker compose up -d --force-recreate mcp-personal`.
 
 The underlying compose commands, if you'd rather run them by hand:
 

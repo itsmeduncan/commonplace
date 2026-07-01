@@ -2,6 +2,7 @@
 .git
 .env
 *.env
+.env.bak.*
 !.env.example
 backups/
 .claude/

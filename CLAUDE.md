@@ -89,7 +89,10 @@ These trip up every edit — full explanations are in README §Gotchas:
 ## Commands (run on the host, from the repo directory, e.g. `~/commonplace`)
 
 Redeploy is wrapped by `scripts/commonplace update` (pull → `--build` → `--force-recreate` the
-config-sensitive services; `--reset` hard-resets to origin/main after a force-push). Raw compose:
+config-sensitive services; `--reset` hard-resets to origin/main after a force-push). Secret rotation
+is `scripts/commonplace rotate <falkordb|personal-token|client-token|tokens|all>` — regenerates the
+secret in `.env` (backing it up to a gitignored `.env.bak.<stamp>`) and recreates only the affected
+services; rotating a bearer token means every client must be updated or it 401s. Raw compose:
 
 ```bash
 docker compose up -d                              # bring the stack up (after .env is filled)
