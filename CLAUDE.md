@@ -115,7 +115,7 @@ docker compose down -v                            # stop AND delete the graphs
 ```
 
 Editing a `config/*.yaml` does not hot-reload — `--force-recreate` the affected instance. Editing the
-`Dockerfile` or `patch_transport_security.py` requires `--build`.
+`Dockerfile` or any `patch_*.py` requires `--build`.
 
 Health check from a client (tailnet or LAN):
 

@@ -262,7 +262,7 @@ docker compose logs -f mcp-personal     # or mcp-client, falkordb
 # Restart one instance after a config change (config/*.yaml does not hot-reload)
 docker compose up -d --force-recreate mcp-client
 
-# Rebuild the local image after editing the Dockerfile or patch_transport_security.py
+# Rebuild the local image after editing the Dockerfile or any patch_*.py
 docker compose up -d --build
 
 # Stop / start (data persists in the falkordb_data volume)
@@ -456,12 +456,14 @@ reranker remains the notable deferral).
 ```
 commonplace/
 ├── docker-compose.yml           # FalkorDB + 2 MCP instances + gateway, restart: unless-stopped
-├── Dockerfile                   # commonplace-mcp:local — standalone image (digest-pinned) + patch
-├── patch_transport_security.py  # build-time: allow remote Host headers (disable DNS-rebind guard)
+├── Dockerfile                   # commonplace-mcp:local — standalone image (digest-pinned) + 5 patches
+├── patch_*.py                   # 5 build-time patches applied in the Dockerfile: transport-security
+│                                #   (remote Host headers), agent-identity, entity-fields, content-guard
+│                                #   (reject_pattern), queue-backpressure (max_queue_size)
 ├── gateway/
 │   └── Caddyfile                # per-tier bearer auth + access logging + Prometheus metrics
 ├── config/
-│   ├── personal.yaml            # instance A — Anthropic Haiku extraction + personal ontology
+│   ├── personal.yaml            # instance A — local by default (hosted-switchable) + personal ontology
 │   └── client.yaml              # instance B — local Ollama extraction + confidential ontology
 ├── scripts/
 │   ├── commonplace              # operate CLI: `commonplace update` redeploys the stack

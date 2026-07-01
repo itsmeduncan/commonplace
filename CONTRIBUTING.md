@@ -1,8 +1,8 @@
 # Contributing to commonplace
 
 Thanks for your interest! `commonplace` is **infrastructure** — a Docker Compose stack, two
-MCP config files, a small Dockerfile, and one build-time patch. There's no application source and
-no test suite, so most contributions are to **configuration, the Dockerfile/patch, CI, or docs**.
+MCP config files, a small Dockerfile, and five build-time patches. There's no application source and
+no test suite, so most contributions are to **configuration, the Dockerfile/patches, CI, or docs**.
 
 Please read the [README](README.md) first — especially the **Gotchas** section. Many of the config
 quirks are load-bearing and counter-intuitive (explicit `temperature`, the bare Anthropic model
@@ -33,11 +33,12 @@ docker compose config --quiet
 # 2. The MCP configs are valid YAML
 python3 -c "import yaml, glob; [yaml.safe_load(open(f)) for f in glob.glob('config/*.yaml')]"
 
-# 3. The transport patch compiles
-python3 -m py_compile patch_transport_security.py
+# 3. The build-time patches compile
+python3 -m py_compile patch_transport_security.py patch_agent_identity.py \
+  patch_entity_fields.py patch_content_guard.py patch_queue_backpressure.py
 
-# 4. The image builds — this is the real test that patch_transport_security.py
-#    still applies cleanly to the upstream zepai/knowledge-graph-mcp:standalone image
+# 4. The image builds — this is the real test that the build-time patches
+#    still apply cleanly to the upstream zepai/knowledge-graph-mcp:standalone image
 docker build -t commonplace-mcp:ci .
 
 # 5. If you touched the gateway, the Caddyfile is valid (not yet covered by CI)
