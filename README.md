@@ -403,7 +403,11 @@ Keep all clients on the same protocol so their writes compose. Then confirm it's
 `scripts/graph_stats.sh` should show node/edge counts **climbing** as you work, and
 `scripts/mcp_activity.sh` (gateway logs) shows reads/writes per tier. Flat counts = the protocol
 isn't installed or isn't being followed. Note that even with it installed, current models won't call
-memory on every turn — it nudges, it doesn't guarantee.
+memory on every turn — it nudges, it doesn't guarantee. To make the **write** step reliable rather
+than discretionary (it's the step agents skip most), wire a client lifecycle hook — for Claude Code,
+[`clients/claude-code/commonplace-capture.sh`](clients/claude-code/commonplace-capture.sh), a `Stop`
+hook that nudges a capture pass once per substantive session. See the "Enforce the write step" note
+in [`docs/memory-protocol.md`](docs/memory-protocol.md).
 
 ---
 
@@ -477,6 +481,9 @@ commonplace/
 │   └── run_eval.py              # scores recall against a tier
 ├── docs/
 │   └── memory-protocol.md       # how agents should read/write memory (tier safety, cite-back)
+├── clients/
+│   └── claude-code/             # client helpers: commonplace-capture.sh (Stop hook enforces writes)
+
 ├── .env.example                 # template; copy to .env on the host (gitignored)
 ├── .dockerignore                # keeps .env and other secrets out of the build context
 ├── CLAUDE.md                    # guidance for Claude Code working in this repo

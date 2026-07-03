@@ -60,6 +60,21 @@ After you learn something that will matter **beyond this session**, call `add_me
   write is attributed to you. It's recorded in the episode's `source_description` — an audit trail of
   which agent wrote what. Optional and backward-compatible; omit it and writes stay anonymous.
 
+## Enforce the write step (recommended)
+
+The write step is the one agents skip. It's the last thing in a task, easy to drop, and nothing
+forces it — so in practice the graph grows only when the agent happens to remember, often just a
+fact or two across days of heavy use even though everything is "configured." If your client supports
+lifecycle hooks, wire one to nudge a capture pass when a session ends.
+
+For Claude Code, ship [`clients/claude-code/commonplace-capture.sh`](../clients/claude-code/commonplace-capture.sh)
+as a `Stop` hook. It fires **at most once per substantive session** — only when the session used
+tools and hasn't already called `add_memory` — and returns `decision: "block"` with an instruction
+to `search_nodes` (dedupe) then `add_memory`, guarding against loops via `stop_hook_active`. See
+[`clients/claude-code/README.md`](../clients/claude-code/README.md) for install steps. This turns
+"the agent should write durable facts" into something that reliably happens rather than something it
+discretionarily remembers.
+
 ## Make leverage visible — CITE what you used
 
 When a memory fact informs your answer, **say so briefly** (e.g. "from memory: you prefer
