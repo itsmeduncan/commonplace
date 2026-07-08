@@ -12,8 +12,11 @@ it doesn't guarantee," and the **write** step is the one that gets skipped (it's
 in a task). Without something like this, expect the graph to grow only when the agent happens to
 remember — often just a fact or two across days of heavy use.
 
-The hook fires **at most once per session**, and only when the session used tools and hasn't
-already called `add_memory`. It guards against loops via `stop_hook_active`, so a session with
+The hook fires **at most once per session**, and only when the session did **substantial work** —
+it changed a file (`Edit`/`Write`/`NotebookEdit`) or ran long and tool-heavy (`>= 12` tool uses,
+override with `COMMONPLACE_CAPTURE_MIN_TOOLS`) — and hasn't already called `add_memory`. Read-only
+lookups and quick chats are skipped, so the hook stays quiet on trivial sessions instead of tacking a
+capture turn onto every one. It guards against loops via `stop_hook_active`, so a session with
 nothing durable self-terminates in one no-op turn.
 
 ### Install
@@ -47,6 +50,9 @@ Open `/hooks` once (or restart) to load it into a running session. Requires `jq`
 
 ### Tradeoff
 
-Costs one extra model turn at the end of substantive sessions — occasionally a no-op "nothing to
-capture" turn. That's the price of making capture reliable instead of relying on the agent to
-remember the last, most-skippable step.
+Costs one extra model turn at the end of a session that did real work — occasionally a no-op "nothing
+to capture" turn. Because the bar is now "mutated a file or ran long," read-only and quick sessions
+skip it entirely, so the everyday noise is gone; the cost lands only where a session plausibly
+produced something worth remembering. That's the price of making capture reliable instead of relying
+on the agent to remember the last, most-skippable step. Raise `COMMONPLACE_CAPTURE_MIN_TOOLS` to make
+it quieter still, or lower it to catch shorter research sessions.
