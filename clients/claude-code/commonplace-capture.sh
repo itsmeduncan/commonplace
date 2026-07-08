@@ -9,7 +9,10 @@
 # Fires at most ONCE per session and only when:
 #   - this isn't the continuation we ourselves triggered (no loops), AND
 #   - add_memory was NOT already called this session, AND
-#   - the session actually did work (>=1 tool_use).
+#   - the session did SUBSTANTIAL work — it mutated a file (Edit/Write/
+#     NotebookEdit) or ran a long tool-heavy session (>= COMMONPLACE_CAPTURE_
+#     MIN_TOOLS tool_uses, default 12). Read-only lookups and quick chats are
+#     skipped so the hook stays quiet on trivial sessions.
 # Otherwise it exits silently (0) and Claude stops normally.
 #
 # Install: copy to ~/.claude/hooks/commonplace-capture.sh, chmod +x, and register
@@ -37,8 +40,15 @@ transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty')
 # namespaced name, e.g. "mcp__commonplace-personal__add_memory" — match that too.
 grep -qE '"name":"(mcp__[a-zA-Z0-9_-]+__)?add_memory"' "$transcript" 2>/dev/null && exit 0
 
-# Only bother if the session actually used tools (skip trivial chats).
-grep -q '"type":"tool_use"' "$transcript" 2>/dev/null || exit 0
+# Only nudge after a session that did REAL work — otherwise the end-of-session
+# turn is pure noise. "Real work" = the session changed something (an edit, a
+# write, a notebook edit), OR it was a long, tool-heavy session (research that
+# likely surfaced durable facts). Read-only lookups and quick chats stay silent.
+# Override the length bar with COMMONPLACE_CAPTURE_MIN_TOOLS (default 12).
+min_tools=${COMMONPLACE_CAPTURE_MIN_TOOLS:-12}
+mutated=$(grep -cE '"name":"(Edit|Write|NotebookEdit)"' "$transcript" 2>/dev/null || true)
+tool_uses=$(grep -c '"type":"tool_use"' "$transcript" 2>/dev/null || true)
+[ "${mutated:-0}" -eq 0 ] && [ "${tool_uses:-0}" -lt "$min_tools" ] && exit 0
 
 jq -n '{
   decision: "block",

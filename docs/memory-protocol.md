@@ -68,19 +68,22 @@ fact or two across days of heavy use even though everything is "configured." If 
 lifecycle hooks, wire one to nudge a capture pass when a session ends.
 
 For Claude Code, ship [`clients/claude-code/commonplace-capture.sh`](../clients/claude-code/commonplace-capture.sh)
-as a `Stop` hook. It fires **at most once per substantive session** — only when the session used
-tools and hasn't already called `add_memory` — and returns `decision: "block"` with an instruction
-to `search_nodes` (dedupe) then `add_memory`, guarding against loops via `stop_hook_active`. See
-[`clients/claude-code/README.md`](../clients/claude-code/README.md) for install steps. This turns
-"the agent should write durable facts" into something that reliably happens rather than something it
-discretionarily remembers.
+as a `Stop` hook. It fires **at most once per substantial session** — only when the session actually
+changed something (an edit/write) or ran long and tool-heavy, and hasn't already called `add_memory`
+— and returns `decision: "block"` with an instruction to `search_nodes` (dedupe) then `add_memory`,
+guarding against loops via `stop_hook_active`. Read-only lookups and quick chats are skipped so the
+nudge stays quiet. See [`clients/claude-code/README.md`](../clients/claude-code/README.md) for install
+steps (and the `COMMONPLACE_CAPTURE_MIN_TOOLS` knob). This turns "the agent should write durable
+facts" into something that reliably happens on real work rather than something it discretionarily
+remembers.
 
-## Make leverage visible — CITE what you used
+## Make leverage visible — CITE sparingly
 
-When a memory fact informs your answer, **say so briefly** (e.g. "from memory: you prefer
-rebase-workflow"). This is how the human can tell the graph is actually being used and is the
-cheapest form of observability. If you searched and found nothing relevant, that's fine — just don't
-silently ignore memory.
+When a memory fact **materially changed** your answer (you'd have asked the user, or answered
+differently, without it), note it in a few words — e.g. "from memory: you prefer rebase-workflow".
+That's the cheapest form of observability. But keep it light: don't prefix routine responses, don't
+narrate searches that found nothing, and don't cite a fact you'd have known anyway. One quiet line
+when it counts beats a citation on every turn.
 
 ## Quick self-check
 
