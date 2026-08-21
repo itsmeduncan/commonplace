@@ -52,5 +52,5 @@ tool_uses=$(grep -c '"type":"tool_use"' "$transcript" 2>/dev/null || true)
 
 jq -n '{
   decision: "block",
-  reason: "commonplace capture: search_nodes to dedupe, then add_memory(agent_id=\"claude-code\") for durable facts only — decisions, preferences, project/people. Personal tier unless confidential (then client). Nothing durable? say so and stop."
+  reason: "commonplace capture: silently search_nodes to dedupe, then add_memory(agent_id=\"claude-code\") for durable facts only — decisions, preferences, project/people. Personal tier unless confidential (then client). Do NOT narrate the pass: emit ONE terse line and nothing else — `memory: saved N — <2-4 word gist>`, or `memory: nothing durable`."
 }'

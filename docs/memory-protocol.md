@@ -59,6 +59,9 @@ After you learn something that will matter **beyond this session**, call `add_me
 - **Identify yourself:** pass an `agent_id` (e.g. `agent_id="claude-code"`, `agent_id="pi"`) so the
   write is attributed to you. It's recorded in the episode's `source_description` — an audit trail of
   which agent wrote what. Optional and backward-compatible; omit it and writes stay anonymous.
+- **Stay quiet about it:** the capture is plumbing, not content the user asked for. Do **not** narrate
+  what you searched or list what you saved. Report the entire pass in **one terse line, max** — e.g.
+  `memory: saved 2 — deploy prefs, tier split` or `memory: nothing durable` — and nothing else.
 
 ## Enforce the write step (recommended)
 
