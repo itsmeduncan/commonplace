@@ -11,7 +11,7 @@
 # Pinned by digest for reproducible builds — the `:standalone` tag is a moving
 # target, so a digest pin makes upstream upgrades deliberate (Dependabot's docker
 # ecosystem proposes bumps; CI's image build verifies the patch still applies).
-FROM zepai/knowledge-graph-mcp:standalone@sha256:460bafb39439d99ff001ea6ef03efbe0bd5d9e6afe2655edf926da4fd9df97c5
+FROM zepai/knowledge-graph-mcp:standalone@sha256:52d619bc3c45527dd5e6c5c413f3024f50d79fa672c81f4b384eb04bff85ca84
 
 # 1) Add the Anthropic SDK (absent from the upstream image) so provider: anthropic works.
 RUN cd /app/mcp && uv pip install anthropic
