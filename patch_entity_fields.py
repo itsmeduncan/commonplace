@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 """Build-time patch: let config entity types declare optional TYPED fields.
 
-Upstream (mcp-v1.0.2) builds one fieldless Pydantic model per configured entity type
-(`type(name, (BaseModel,), {'__doc__': description})`), so `config/*.yaml` can only give
-an entity a name + description — never structured attributes like `Decision.rationale` or
-`Deliverable.due_date`. graphiti supports typed entity fields (its built-in `Requirement`
-has `project_name`), but that route needs code-defined models, which conflicts with this
-project's "ontology lives in config" tenet.
+Upstream builds one model per configured entity type in
+``utils/type_config.py::build_entity_types``: it prefers a rich model registered in
+``models.entity_types.ENTITY_TYPES`` (matched by name), else a documentation-only
+model built from name + description. So ``config/*.yaml`` can only give a *custom*
+entity a name + description — never structured attributes like ``Decision.rationale``
+or ``Deliverable.due_date`` (the rich models exist only for upstream's own hardcoded
+types), which conflicts with this project's "ontology lives in config" tenet.
 
-This patch keeps the ontology in config: it adds an optional `fields:` list to the entity-
-type config schema and teaches the build loop to construct a real typed model from it. Every
-declared field is made OPTIONAL (`T | None`, default None) so the weak local extractor is
-never forced to populate one — a field it can't fill is simply left empty, not an error.
+This patch keeps the ontology in config: it adds an optional ``fields:`` list to the
+entity-type config schema and teaches ``build_entity_types`` to construct a real typed
+model from it. A config-declared ``fields:`` list WINS over any registered upstream
+model, so the config is authoritative. Every declared field is made OPTIONAL
+(``T | None``, default None) so the weak local extractor is never forced to populate
+one — a field it can't fill is left empty, not an error.
 
-Fully backward-compatible: an entity type with no `fields:` builds the exact same fieldless
-model as before. Two baked files are edited:
+Fully backward-compatible: an entity type with no ``fields:`` builds exactly what
+upstream would (registered rich model, else doc-only). Two baked files are edited:
   - config/schema.py         — add EntityFieldConfig + EntityTypeConfig.fields
-  - graphiti_mcp_server.py    — build typed models via pydantic.create_model when fields exist
+  - utils/type_config.py      — build typed models via pydantic.create_model when fields exist
 
 Idempotent; FAILS THE BUILD if any anchor is missing (CI's docker build exercises this).
+The upstream entity-type build path was refactored out of graphiti_mcp_server.py into
+utils/type_config.py; re-anchor here if a future bump moves it again.
 
 Tracks: https://github.com/itsmeduncan/commonplace/issues/14
 """
@@ -43,7 +48,13 @@ if 'class EntityFieldConfig' not in schema:
     schema = replace_once(
         schema,
         'class EntityTypeConfig(BaseModel):\n'
-        '    """Entity type configuration."""\n'
+        '    """Entity type configuration.\n'
+        '\n'
+        '    If ``name`` matches a model registered in ``models.entity_types.ENTITY_TYPES``,\n'
+        '    the rich Pydantic model (with its attributes and extraction instructions) is\n'
+        '    registered with graphiti-core. Otherwise a documentation-only model is built\n'
+        '    from ``name`` + ``description`` for backward compatibility.\n'
+        '    """\n'
         '\n'
         '    name: str\n'
         '    description: str\n',
@@ -56,7 +67,16 @@ if 'class EntityFieldConfig' not in schema:
         '\n'
         '\n'
         'class EntityTypeConfig(BaseModel):\n'
-        '    """Entity type configuration."""\n'
+        '    """Entity type configuration.\n'
+        '\n'
+        '    If ``name`` matches a model registered in ``models.entity_types.ENTITY_TYPES``,\n'
+        '    the rich Pydantic model (with its attributes and extraction instructions) is\n'
+        '    registered with graphiti-core. Otherwise a documentation-only model is built\n'
+        '    from ``name`` + ``description`` for backward compatibility.\n'
+        '\n'
+        '    A config-declared ``fields:`` list wins over any registered model, so the\n'
+        '    ontology stays in config (issue #14).\n'
+        '    """\n'
         '\n'
         '    name: str\n'
         '    description: str\n'
@@ -69,61 +89,54 @@ else:
     print('entity-fields patch: schema.py already patched')
 
 
-# ---- 2) graphiti_mcp_server.py: build typed models from the new `fields` ----
-gms_path = MCP_ROOT / 'graphiti_mcp_server.py'
-gms = gms_path.read_text()
+# ---- 2) utils/type_config.py: build typed models from the new `fields` ----
+tc_path = MCP_ROOT / 'utils' / 'type_config.py'
+tc = tc_path.read_text()
 
-if 'create_model' not in gms:
-    gms = replace_once(
-        gms,
-        'from pydantic import BaseModel\n',
+if 'from pydantic import BaseModel, create_model\n' in tc:
+    tc = replace_once(
+        tc,
+        'from pydantic import BaseModel, create_model\n',
         'from pydantic import BaseModel, Field, create_model\n',
-        'the pydantic import in graphiti_mcp_server.py',
+        'the pydantic import in type_config.py',
     )
 
-if '_TYPED_FIELD_PYTYPES' not in gms:
-    gms = replace_once(
-        gms,
-        '                    # Create a dynamic Pydantic model for each entity type\n'
-        "                    # Note: Don't use 'name' as it's a protected Pydantic attribute\n"
-        '                    entity_model = type(\n'
-        '                        entity_type.name,\n'
-        '                        (BaseModel,),\n'
-        '                        {\n'
-        "                            '__doc__': entity_type.description,\n"
-        '                        },\n'
-        '                    )\n'
-        '                    custom_types[entity_type.name] = entity_model\n',
-        '                    # Create a dynamic Pydantic model for each entity type\n'
-        "                    # Note: Don't use 'name' as it's a protected Pydantic attribute\n"
-        '                    typed_fields = getattr(entity_type, \'fields\', None)\n'
-        '                    if typed_fields:\n'
-        '                        # Typed attributes from config. All OPTIONAL so the (often\n'
-        '                        # weak, local) extractor is never forced to populate a field.\n'
-        "                        _TYPED_FIELD_PYTYPES = {'str': str, 'int': int, 'float': float, 'bool': bool}\n"
-        '                        field_defs = {\n'
-        '                            f.name: (\n'
-        '                                _TYPED_FIELD_PYTYPES.get(f.type, str) | None,\n'
-        '                                Field(default=None, description=f.description),\n'
-        '                            )\n'
-        '                            for f in typed_fields\n'
-        '                        }\n'
-        '                        entity_model = create_model(\n'
-        '                            entity_type.name,\n'
-        '                            __doc__=entity_type.description,\n'
-        '                            **field_defs,\n'
-        '                        )\n'
-        '                    else:\n'
-        '                        entity_model = type(\n'
-        '                            entity_type.name,\n'
-        '                            (BaseModel,),\n'
-        '                            {\n'
-        "                                '__doc__': entity_type.description,\n"
-        '                            },\n'
-        '                        )\n'
-        '                    custom_types[entity_type.name] = entity_model\n',
-        'the entity-model build loop in graphiti_mcp_server.py',
+if '# issue #14: config-declared typed fields' not in tc:
+    tc = replace_once(
+        tc,
+        '    result: dict[str, type[BaseModel]] = {}\n'
+        '    for cfg in entity_type_configs:\n'
+        '        registered = ENTITY_TYPES.get(cfg.name)\n'
+        '        result[cfg.name] = (\n'
+        '            registered if registered is not None else _doc_only_model(cfg.name, cfg.description)\n'
+        '        )\n'
+        '    return result\n',
+        '    result: dict[str, type[BaseModel]] = {}\n'
+        '    for cfg in entity_type_configs:\n'
+        '        # issue #14: config-declared typed fields win over any registered model,\n'
+        '        # so the ontology stays in config. All fields are OPTIONAL so the (often\n'
+        "        # weak, local) extractor is never forced to populate one it can't fill.\n"
+        "        typed_fields = getattr(cfg, 'fields', None)\n"
+        '        if typed_fields:\n'
+        "            _PYTYPES = {'str': str, 'int': int, 'float': float, 'bool': bool}\n"
+        '            field_defs = {\n'
+        '                f.name: (\n'
+        '                    _PYTYPES.get(f.type, str) | None,\n'
+        '                    Field(default=None, description=f.description),\n'
+        '                )\n'
+        '                for f in typed_fields\n'
+        '            }\n'
+        '            result[cfg.name] = create_model(\n'
+        '                cfg.name, __doc__=cfg.description, **field_defs\n'
+        '            )\n'
+        '            continue\n'
+        '        registered = ENTITY_TYPES.get(cfg.name)\n'
+        '        result[cfg.name] = (\n'
+        '            registered if registered is not None else _doc_only_model(cfg.name, cfg.description)\n'
+        '        )\n'
+        '    return result\n',
+        'the build_entity_types loop in type_config.py',
     )
 
-gms_path.write_text(gms)
-print('entity-fields patch: graphiti_mcp_server.py OK')
+tc_path.write_text(tc)
+print('entity-fields patch: type_config.py OK')

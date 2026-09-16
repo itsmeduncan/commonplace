@@ -62,7 +62,9 @@ gms = gms_path.read_text()
 if 'max_queue_size' not in gms:
     gms = replace_once(
         gms,
+        '        # Use the provided group_id or fall back to the default from config\n'
         '        effective_group_id = group_id or config.graphiti.group_id\n',
+        '        # Use the provided group_id or fall back to the default from config\n'
         '        effective_group_id = group_id or config.graphiti.group_id\n'
         '\n'
         '        # GPU queue backpressure: refuse new episodes when this group\'s ingestion\n'
