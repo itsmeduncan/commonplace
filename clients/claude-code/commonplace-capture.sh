@@ -36,9 +36,13 @@ input=$(cat)
 transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty')
 { [ -z "$transcript" ] || [ ! -f "$transcript" ]; } && exit 0
 
-# Already captured this session? Nothing to nudge. MCP tools are recorded with a
+# Already engaged the memory system this session? Nothing to nudge. The protocol
+# is search-first, write-if-durable — so a completed capture pass may legitimately
+# make NO add_memory call (nothing durable emerged). Treat a dedupe search as
+# proof the pass ran, otherwise a nothing-durable session can never satisfy the
+# hook and it re-fires after every user message. MCP tools are recorded with a
 # namespaced name, e.g. "mcp__commonplace-personal__add_memory" — match that too.
-grep -qE '"name":"(mcp__[a-zA-Z0-9_-]+__)?add_memory"' "$transcript" 2>/dev/null && exit 0
+grep -qE '"name":"(mcp__[a-zA-Z0-9_-]+__)?(add_memory|search_nodes|search_memory_facts)"' "$transcript" 2>/dev/null && exit 0
 
 # Only nudge after a session that did REAL work — otherwise the end-of-session
 # turn is pure noise. "Real work" = the session changed something (an edit, a
