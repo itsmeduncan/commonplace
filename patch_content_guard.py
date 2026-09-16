@@ -63,7 +63,7 @@ if 'reject_pattern' not in gms:
         "    if graphiti_service is None or queue_service is None:\n"
         "        return ErrorResponse(error='Services not initialized')\n"
         '\n'
-        '    try:\n',
+        '    # Parse the optional reference_time before queuing so callers get an immediate\n',
         "    if graphiti_service is None or queue_service is None:\n"
         "        return ErrorResponse(error='Services not initialized')\n"
         '\n'
@@ -81,7 +81,7 @@ if 'reject_pattern' not in gms:
         '                )\n'
         '            )\n'
         '\n'
-        '    try:\n',
+        '    # Parse the optional reference_time before queuing so callers get an immediate\n',
         'the add_memory services-check boundary in graphiti_mcp_server.py',
     )
     gms_path.write_text(gms)

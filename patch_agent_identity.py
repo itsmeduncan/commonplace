@@ -32,11 +32,13 @@ def replace_once(text: str, anchor: str, replacement: str, what: str) -> str:
     return text.replace(anchor, replacement, 1)
 
 
-# 1) Add the optional parameter to the tool signature.
+# 1) Add the optional parameter to the tool signature. Anchor on the LAST
+#    upstream parameter so agent_id stays trailing; upstream grows this list over
+#    time (reference_time, saga_*, …), so re-anchor here when a bump adds params.
 src = replace_once(
     src,
-    "    uuid: str | None = None,\n) -> SuccessResponse | ErrorResponse:",
-    "    uuid: str | None = None,\n"
+    "    saga_previous_episode_uuid: str | None = None,\n) -> SuccessResponse | ErrorResponse:",
+    "    saga_previous_episode_uuid: str | None = None,\n"
     "    agent_id: str | None = None,\n"
     ") -> SuccessResponse | ErrorResponse:",
     'the add_memory signature',
