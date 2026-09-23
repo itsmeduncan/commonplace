@@ -27,7 +27,13 @@
 #   }
 #
 # Requires: jq. Assumes the commonplace MCP servers are configured in the client.
-set -euo pipefail
+#
+# POSIX sh only (no `pipefail`): Claude Code runs the hook command through the
+# system shell, which is dash on most Linux hosts. `set -o pipefail` is a bashism
+# and aborts dash with "Illegal option -o pipefail", turning every Stop into a
+# hook error. `set -eu` is enough here — the only pipes end in the command whose
+# status we care about, so pipefail buys nothing.
+set -eu
 input=$(cat)
 
 # Don't re-fire on our own continuation → prevents infinite Stop loops.
@@ -36,13 +42,20 @@ input=$(cat)
 transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty')
 { [ -z "$transcript" ] || [ ! -f "$transcript" ]; } && exit 0
 
-# Already engaged the memory system this session? Nothing to nudge. The protocol
-# is search-first, write-if-durable — so a completed capture pass may legitimately
-# make NO add_memory call (nothing durable emerged). Treat a dedupe search as
-# proof the pass ran, otherwise a nothing-durable session can never satisfy the
-# hook and it re-fires after every user message. MCP tools are recorded with a
-# namespaced name, e.g. "mcp__commonplace-personal__add_memory" — match that too.
-grep -qE '"name":"(mcp__[a-zA-Z0-9_-]+__)?(add_memory|search_nodes|search_memory_facts)"' "$transcript" 2>/dev/null && exit 0
+# Already WROTE to memory this session? Then a capture happened — nothing to nudge.
+# Match add_memory ONLY. Do NOT count search_nodes/search_memory_facts as proof: the
+# protocol is search-FIRST, so a read-first lookup at task start would trip this guard
+# and suppress the write nudge on exactly the compliant sessions the hook exists to
+# serve. MCP tools are recorded namespaced, e.g. "mcp__commonplace-personal__add_memory";
+# JSON spacing varies between clients, so allow optional whitespace after the colon.
+grep -qE '"name":[[:space:]]*"(mcp__[a-zA-Z0-9_-]+__)?add_memory"' "$transcript" 2>/dev/null && exit 0
+
+# Already nudged once this session? Don't re-nudge on every following user turn. A
+# nothing-durable pass legitimately writes no add_memory, so keying only on add_memory
+# would re-fire the nudge after each later message. `stop_hook_active` guards only the
+# immediate continuation; this covers subsequent turns. The reason below carries a
+# unique sentinel — its presence in the transcript proves the hook already fired.
+grep -qF 'commonplace-capture-nudge' "$transcript" 2>/dev/null && exit 0
 
 # Only nudge after a session that did REAL work — otherwise the end-of-session
 # turn is pure noise. "Real work" = the session changed something (an edit, a
@@ -50,11 +63,11 @@ grep -qE '"name":"(mcp__[a-zA-Z0-9_-]+__)?(add_memory|search_nodes|search_memory
 # likely surfaced durable facts). Read-only lookups and quick chats stay silent.
 # Override the length bar with COMMONPLACE_CAPTURE_MIN_TOOLS (default 12).
 min_tools=${COMMONPLACE_CAPTURE_MIN_TOOLS:-12}
-mutated=$(grep -cE '"name":"(Edit|Write|NotebookEdit)"' "$transcript" 2>/dev/null || true)
-tool_uses=$(grep -c '"type":"tool_use"' "$transcript" 2>/dev/null || true)
+mutated=$(grep -cE '"name":[[:space:]]*"(Edit|Write|NotebookEdit)"' "$transcript" 2>/dev/null || true)
+tool_uses=$(grep -cE '"type":[[:space:]]*"tool_use"' "$transcript" 2>/dev/null || true)
 [ "${mutated:-0}" -eq 0 ] && [ "${tool_uses:-0}" -lt "$min_tools" ] && exit 0
 
 jq -n '{
   decision: "block",
-  reason: "commonplace capture: silently search_nodes to dedupe, then add_memory(agent_id=\"claude-code\") for durable facts only — decisions, preferences, project/people. Personal tier unless confidential (then client). Do NOT narrate the pass: emit ONE terse line and nothing else — `memory: saved N — <2-4 word gist>`, or `memory: nothing durable`."
+  reason: "commonplace capture: silently search_nodes to dedupe, then add_memory(agent_id=\"claude-code\") for durable facts only — decisions, preferences, project/people. Personal tier unless confidential (then client). Do NOT narrate the pass: emit ONE terse line and nothing else — `memory: saved N — <2-4 word gist>`, or `memory: nothing durable`. <!-- commonplace-capture-nudge -->"
 }'
