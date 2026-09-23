@@ -16,8 +16,15 @@ The hook fires **at most once per session**, and only when the session did **sub
 it changed a file (`Edit`/`Write`/`NotebookEdit`) or ran long and tool-heavy (`>= 12` tool uses,
 override with `COMMONPLACE_CAPTURE_MIN_TOOLS`) — and hasn't already called `add_memory`. Read-only
 lookups and quick chats are skipped, so the hook stays quiet on trivial sessions instead of tacking a
-capture turn onto every one. It guards against loops via `stop_hook_active`, so a session with
-nothing durable self-terminates in one no-op turn.
+capture turn onto every one.
+
+The "already handled" test keys on `add_memory` (a **write**) only — never on a `search_*` call.
+The memory protocol is search-**first**, so a compliant session opens with a read; counting that read
+as proof would suppress the write nudge on exactly the sessions that need it. A pass that finds nothing
+durable writes no `add_memory`, so the hook would re-nudge on every later message; to stop that it
+drops a sentinel in its reason and skips once the sentinel is in the transcript. Together with the
+`stop_hook_active` loop guard, a nothing-durable session self-terminates in one no-op turn and is not
+nudged again.
 
 ### Install
 

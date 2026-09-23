@@ -216,6 +216,11 @@ older docs.
 15. **The container env var for the OpenAI-compatible base URL is `OPENAI_API_URL`** (graphiti's
     config expansion), not `OPENAI_BASE_URL`. Note the reranker (#13) is the opposite — it reads the
     OpenAI SDK's `OPENAI_BASE_URL`. Two different names for two different clients.
+16. **The facts-search tool is `search_memory_facts`, not `search_facts`.** The MCP server's own
+    instruction text (and older Graphiti docs) call it `search_facts` — that name does not exist and a
+    literal call fails. The two search verbs are `search_memory_facts` (facts/edges) and `search_nodes`
+    (entities); `add_memory`, `get_episodes`, and the rest are named as documented. Only the facts
+    search is misnamed in the upstream help, so trust the tool list, not the help string.
 
 ---
 
