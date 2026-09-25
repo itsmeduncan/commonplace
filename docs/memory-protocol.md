@@ -71,12 +71,13 @@ fact or two across days of heavy use even though everything is "configured." If 
 lifecycle hooks, wire one to nudge a capture pass when a session ends.
 
 For Claude Code, ship [`clients/claude-code/commonplace-capture.sh`](../clients/claude-code/commonplace-capture.sh)
-as a `Stop` hook. It fires **at most once per substantial session** — only when the session actually
-changed something (an edit/write) or ran long and tool-heavy, and hasn't already called `add_memory`
-— and returns `decision: "block"` with an instruction to `search_nodes` (dedupe) then `add_memory`,
-guarding against loops via `stop_hook_active`. Read-only lookups and quick chats are skipped so the
-nudge stays quiet. See [`clients/claude-code/README.md`](../clients/claude-code/README.md) for install
-steps (and the `COMMONPLACE_CAPTURE_MIN_TOOLS` knob). This turns "the agent should write durable
+as two hooks sharing one once-per-session gate. The `UserPromptSubmit` mode is the silent primary: after a
+session changed something (an edit/write) or ran long and tool-heavy, it injects an instruction to
+`search_nodes` (dedupe) then `add_memory` into the next message. The `Stop` mode is a backstop for big
+sessions (a file change and 20+ tool uses) that may end with no next message; it returns `decision: "block"`,
+guarded against loops via `stop_hook_active`. Neither fires once `add_memory` was called. See
+[`clients/claude-code/README.md`](../clients/claude-code/README.md) for install steps (and the
+`COMMONPLACE_CAPTURE_MIN_TOOLS` / `COMMONPLACE_CAPTURE_STOP_MIN_TOOLS` knobs). This turns "the agent should write durable
 facts" into something that reliably happens on real work rather than something it discretionarily
 remembers.
 
