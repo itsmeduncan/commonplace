@@ -510,6 +510,11 @@ OpenAI-compatible server (`brain/test/fake_openai.py`), drives it over MCP
 isolation, durability across a restart, and, from a packet capture, that no connection or DNS
 lookup goes anywhere but `WHELK_SERVER_URL`. CI runs it on every push and pull request.
 
+To publish, push a tag `brain-vX.Y.Z`. The `Brain release` workflow builds the image, runs the
+same smoke test, pushes `ghcr.io/getwhelk/brain:X.Y.Z`, and writes the digest to its job summary.
+It needs the repository secret `GHCR_TOKEN`, a token with `packages:write` on `getwhelk`. Pin
+that digest in Whelk's `docs/brain.md`. Nothing else publishes the image.
+
 Two of the image's patches are shared with the two-tier stack's `Dockerfile`, because both
 fix upstream behavior that the stack hits too:
 
