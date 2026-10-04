@@ -5,9 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `commonplace` is **infrastructure only** — a Docker Compose stack, two MCP config files, a
-Dockerfile, and five build-time patches. There is no application source, no test suite, and no lint
-step. It deploys a self-hosted, two-tier [Graphiti](https://github.com/getzep/graphiti) knowledge
-graph that Claude Code and Pi use as long-term memory over a Tailscale tailnet.
+Dockerfile, seven build-time patches, and a second image for the Whelk Server org brain (`brain/`).
+There is no application source and no lint step. The only test is the brain image's end-to-end
+smoke test (`brain/test/smoke.sh`), which CI runs. It deploys a self-hosted, two-tier
+[Graphiti](https://github.com/getzep/graphiti) knowledge graph that Claude Code and Pi use as
+long-term memory over a Tailscale tailnet.
 
 **Read `README.md` first** — it is the real documentation. It contains the architecture diagram, the
 endpoint/graph map, a 15-item "Gotchas" list, and client-config instructions. This file summarizes
@@ -33,8 +35,10 @@ only the load-bearing facts and points back to it.
   the `anthropic` SDK and rejects remote Host headers, so the Dockerfile adds the SDK and runs
   `patch_transport_security.py` (plus `patch_agent_identity.py` → `add_memory` `agent_id`,
   `patch_entity_fields.py` → optional typed entity fields, `patch_content_guard.py` →
-  `reject_pattern` tier guard, and `patch_queue_backpressure.py` → `max_queue_size` GPU
-  backpressure). Use `:standalone`, never `:latest` (the latter bundles its own
+  `reject_pattern` tier guard, `patch_queue_backpressure.py` → `max_queue_size` GPU
+  backpressure, `patch_episode_uuids.py` → `get_episodes(uuids=…)`, and
+  `patch_serial_ingest.py` → one episode at a time across groups, so concurrent groups cannot
+  cross-write graphs). Use `:standalone`, never `:latest` (the latter bundles its own
   FalkorDB and can't share one).
 - **Offline-first.** Both tiers extract **locally** (`mistral:7b-instruct-q4_0` on the GPU) **by
   default** — no API keys, nothing leaves the box. The **personal tier** (`config/personal.yaml`, host
@@ -59,6 +63,13 @@ only the load-bearing facts and points back to it.
   `:3000`; FalkorDB `:6379` binds to `127.0.0.1` only.
 - Ollama runs on the host, so each MCP service needs `extra_hosts: host.docker.internal:host-gateway`
   and an `api_url` of `http://host.docker.internal:11434/v1`.
+
+- **The Whelk brain is a separate image.** `brain/Dockerfile` builds Graphiti MCP + FalkorDB in
+  ONE container from the combined upstream image (digest-pinned) for Whelk Server's `brain` product:
+  models via `${WHELK_SERVER_URL}/v1` with `WHELK_SERVER_TOKEN`, a bearer gate on `/mcp/`
+  (`brain/whelk_bearer.py`), FalkorDB on loopback, read-only root. Test it with
+  `brain/test/smoke.sh`. It shares `patch_transport_security.py`, `patch_episode_uuids.py` and
+  `patch_serial_ingest.py` with the two-tier `Dockerfile`. See README §The Whelk brain image.
 
 ## Config quirks that look like bugs but aren't
 
