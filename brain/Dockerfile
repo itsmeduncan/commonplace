@@ -32,8 +32,9 @@ RUN /app/mcp/.venv/bin/python /tmp/patch_transport_security.py \
 
 # 3) Brain-only: the bearer gate on /mcp/ against WHELK_SERVER_TOKEN.
 COPY brain/whelk_bearer.py /app/mcp/src/whelk_bearer.py
-COPY brain/patch_bearer.py /tmp/patch_bearer.py
+COPY brain/patch_bearer.py brain/patch_prompt_json.py /tmp/
 RUN /app/mcp/.venv/bin/python /tmp/patch_bearer.py \
+ && /app/mcp/.venv/bin/python /tmp/patch_prompt_json.py \
  && /app/mcp/.venv/bin/python -m compileall -q /app/mcp/src \
  && rm -f /tmp/patch_*.py
 

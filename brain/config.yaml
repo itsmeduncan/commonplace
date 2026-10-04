@@ -20,6 +20,7 @@ llm:
   model: ${WHELK_BRAIN_MODEL}
   max_tokens: 4096
   temperature: 0.0
+  structured_output_mode: prompt
   providers:
     openai:
       api_key: ${WHELK_SERVER_TOKEN}
