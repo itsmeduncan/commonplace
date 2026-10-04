@@ -88,6 +88,23 @@ def structured(name, schema, messages):
     return minimal(schema, schema.get('$defs', {}))
 
 
+PROMPT_SCHEMA = 'Respond with a JSON object in the following format:'
+
+
+def prompt_schema(messages):
+    for message in reversed(messages):
+        text = message.get('content') or ''
+        at = text.rfind(PROMPT_SCHEMA)
+        if at < 0:
+            continue
+        try:
+            schema, _ = json.JSONDecoder().raw_decode(text[at + len(PROMPT_SCHEMA):].lstrip())
+            return schema
+        except ValueError:
+            return {}
+    return {}
+
+
 def embed(text):
     vector = [0.0] * DIMENSIONS
     for word in re.findall(r'[a-z0-9]+', text.lower()):
@@ -137,10 +154,14 @@ class Handler(BaseHTTPRequestHandler):
                 },
             )
         if self.path == '/v1/chat/completions':
+            messages = body.get('messages', [])
             fmt = (body.get('response_format') or {}).get('json_schema') or {}
-            name = fmt.get('name', '')
-            content = structured(name, fmt.get('schema', {}), body.get('messages', []))
-            log(path=self.path, model=body.get('model'), auth=auth, schema=name)
+            schema, mode = fmt.get('schema', {}), 'json_schema'
+            if not fmt:
+                schema, mode = prompt_schema(messages), (body.get('response_format') or {}).get('type', 'none')
+            name = fmt.get('name') or schema.get('title', '')
+            content = structured(name, schema, messages)
+            log(path=self.path, model=body.get('model'), auth=auth, schema=name, format=mode)
             return self.reply(
                 200,
                 {

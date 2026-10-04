@@ -141,6 +141,10 @@ if not lines or stray:
 if {k[0] for k in calls} != {'/v1/chat/completions', '/v1/embeddings'}:
     sys.exit('FAIL: the brain did not call both the chat and the embeddings route')
 print('ok: only /v1/chat/completions (fake-chat) and /v1/embeddings (fake-embed), all with the token')
+formats = {l.get('format') for l in lines if l['path'] == '/v1/chat/completions'}
+if formats != {'text'}:
+    sys.exit(f'FAIL: chat calls must ask for JSON in the prompt with response_format text; saw {sorted(map(str, formats))}')
+print('ok: every chat call asked for JSON in the prompt (response_format text)')
 PY
 
 step "no traffic to any other host"
