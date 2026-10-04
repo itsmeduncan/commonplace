@@ -460,15 +460,92 @@ reranker remains the notable deferral).
 
 ---
 
+## The Whelk brain image
+
+`brain/` builds a second, separate image: the **org brain** that
+[Whelk Server](https://getwhelk.com) runs as its `brain` product. It is the same Graphiti MCP
+server, packaged for one job:
+
+- **One container, Graphiti MCP + FalkorDB.** Built from the _combined_ upstream image
+  (`zepai/knowledge-graph-mcp:latest`, pinned by digest), not `:standalone`: Whelk Server runs a
+  product as one digest-pinned container, so there is no separate FalkorDB to share. FalkorDB
+  binds `127.0.0.1` inside the container and is never published.
+- **Models are the operator's own.** Extraction and embeddings use the generic OpenAI-compatible
+  client at `${WHELK_SERVER_URL}/v1`, with `${WHELK_SERVER_TOKEN}` as the key, and the models
+  named by `WHELK_BRAIN_MODEL` and `WHELK_BRAIN_EMBED_MODEL` (`brain/config.yaml`). There is no
+  Anthropic path (the SDK is removed from the image), telemetry is off, and nothing else is
+  called.
+- **A bearer gate on `/mcp/`.** Every request except `GET /health` must carry
+  `Authorization: Bearer $WHELK_SERVER_TOKEN` (`brain/whelk_bearer.py`), so a local process
+  cannot use the published loopback port without the token. Without the token the brain does
+  not start. `/mcp/` answers directly (no 307), because Whelk Server's MCP client does not
+  follow redirects.
+- **Read-only root, no tmpfs.** MCP listens on `0.0.0.0:8000` inside the container; all state,
+  including a scratch temp dir that is emptied at start, lives in `/var/lib/falkordb/data`.
+  The container runs as uid `10251`.
+
+Whelk Server writes `WHELK_SERVER_URL` and `WHELK_SERVER_TOKEN` itself for a product with
+`"reach_server": true`; the manifest sets the rest. See Whelk's `docs/brain.md` for the manifest.
+
+| Variable                       | Required | Meaning                                                        |
+| ------------------------------ | -------- | -------------------------------------------------------------- |
+| `WHELK_SERVER_URL`             | yes      | Base URL of the OpenAI-compatible server, without `/v1`        |
+| `WHELK_SERVER_TOKEN`           | yes      | The API key for that server and the bearer the brain requires  |
+| `WHELK_BRAIN_MODEL`            | yes      | Chat model for extraction                                      |
+| `WHELK_BRAIN_EMBED_MODEL`      | yes      | Embedding model                                                |
+| `WHELK_BRAIN_EMBED_DIMENSIONS` | no       | Embedding size, `768` by default (`nomic-embed-text`)          |
+| `SEMAPHORE_LIMIT`              | no       | Concurrent model calls during extraction, `1` by default       |
+
+Build and test it locally (nothing is published):
+
+```bash
+docker build -f brain/Dockerfile -t commonplace-brain:local .
+brain/test/smoke.sh commonplace-brain:local
+```
+
+The smoke test runs the image read-only on a scratch `--internal` network against a fake
+OpenAI-compatible server (`brain/test/fake_openai.py`), drives it over MCP
+(`brain/test/mcp_probe.py`), and removes everything it made. It checks the bearer gate,
+`add_memory`, `search_memory_facts`, `search_nodes`, `get_episodes` with `uuids`, group
+isolation, durability across a restart, and, from a packet capture, that no connection or DNS
+lookup goes anywhere but `WHELK_SERVER_URL`. CI runs it on every push and pull request.
+
+To publish, push a tag `brain-vX.Y.Z`. The `Brain release` workflow builds the image, runs the
+same smoke test, pushes `ghcr.io/getwhelk/brain:X.Y.Z`, and writes the digest to its job summary.
+It needs the repository secret `GHCR_TOKEN`, a token with `packages:write` on `getwhelk`. Pin
+that digest in Whelk's `docs/brain.md`. Nothing else publishes the image.
+
+Two of the image's patches are shared with the two-tier stack's `Dockerfile`, because both
+fix upstream behavior that the stack hits too:
+
+- `patch_episode_uuids.py` — `get_episodes` takes `uuids`, so the source episodes a fact names
+  (its `episodes` list) can be fetched, from the requested groups only.
+- `patch_serial_ingest.py` — one episode at a time across **all** groups. Upstream rebinds a
+  shared FalkorDB driver to each episode's group, so two groups ingesting at once wrote into
+  each other's graph (reproduced: a `whelk-team` fact landed in the `whelk-finance` graph).
+
+**Licenses.** The brain image bundles FalkorDB (SSPLv1) and Redis (RSALv2 / SSPLv1 / AGPLv3)
+alongside Graphiti (Apache-2.0) and this repo's MIT code. `brain/NOTICE` lists each component,
+its license and its source, and ships in the image at `/usr/share/doc/commonplace-brain/NOTICE`.
+
+---
+
 ## Repo layout
 
 ```
 commonplace/
 ├── docker-compose.yml           # FalkorDB + 2 MCP instances + gateway, restart: unless-stopped
-├── Dockerfile                   # commonplace-mcp:local — standalone image (digest-pinned) + 5 patches
-├── patch_*.py                   # 5 build-time patches applied in the Dockerfile: transport-security
+├── Dockerfile                   # commonplace-mcp:local — standalone image (digest-pinned) + 7 patches
+├── patch_*.py                   # 7 build-time patches applied in the Dockerfile: transport-security
 │                                #   (remote Host headers), agent-identity, entity-fields, content-guard
-│                                #   (reject_pattern), queue-backpressure (max_queue_size)
+│                                #   (reject_pattern), queue-backpressure (max_queue_size),
+│                                #   episode-uuids (get_episodes uuids), serial-ingest (group isolation)
+├── brain/                       # the Whelk Server org brain: one image, Graphiti MCP + FalkorDB
+│   ├── Dockerfile               #   combined upstream image (digest-pinned) + bearer gate + Whelk config
+│   ├── config.yaml / start.sh   #   models via WHELK_SERVER_URL/v1; FalkorDB on loopback; read-only root
+│   ├── whelk_bearer.py          #   bearer gate on /mcp/ (patch_bearer.py wires it in)
+│   ├── NOTICE                   #   third-party licenses (Graphiti, FalkorDB, Redis)
+│   └── test/                    #   smoke.sh + fake OpenAI-compatible server + MCP probe
 ├── gateway/
 │   └── Caddyfile                # per-tier bearer auth + access logging + Prometheus metrics
 ├── config/
@@ -503,4 +580,5 @@ truth: edit a clone, push to your fork, `git pull` on the host, `docker compose 
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). The brain image (`brain/`) also bundles third-party software under other
+licenses, including FalkorDB under SSPLv1; see [`brain/NOTICE`](brain/NOTICE).

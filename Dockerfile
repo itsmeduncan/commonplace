@@ -40,3 +40,14 @@ RUN /app/mcp/.venv/bin/python /tmp/patch_content_guard.py
 #    See patch_queue_backpressure.py. Fails the build if its anchors drift (issue #12).
 COPY patch_queue_backpressure.py /tmp/patch_queue_backpressure.py
 RUN /app/mcp/.venv/bin/python /tmp/patch_queue_backpressure.py
+
+# 7) get_episodes(uuids=…): fetch the source episodes a fact names, per group graph.
+#    See patch_episode_uuids.py. Fails the build if its anchors drift.
+COPY patch_episode_uuids.py /tmp/patch_episode_uuids.py
+RUN /app/mcp/.venv/bin/python /tmp/patch_episode_uuids.py
+
+# 8) One episode at a time across ALL group_ids: upstream add_episode rebinds the shared
+#    FalkorDB driver per group, so two groups ingesting at once cross-write into each
+#    other's graph. See patch_serial_ingest.py. Fails the build if its anchors drift.
+COPY patch_serial_ingest.py /tmp/patch_serial_ingest.py
+RUN /app/mcp/.venv/bin/python /tmp/patch_serial_ingest.py

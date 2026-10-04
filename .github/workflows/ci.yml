@@ -27,10 +27,13 @@ jobs:
       - name: Parse MCP config YAML
         run: |
           python3 -m pip install --quiet pyyaml
-          python3 -c "import yaml, glob; [yaml.safe_load(open(f)) for f in glob.glob('config/*.yaml')]"
+          python3 -c "import yaml, glob; [yaml.safe_load(open(f)) for f in glob.glob('config/*.yaml') + ['brain/config.yaml']]"
 
       - name: Syntax-check the build-time patches
-        run: python3 -m py_compile patch_transport_security.py patch_agent_identity.py patch_entity_fields.py patch_content_guard.py patch_queue_backpressure.py
+        run: python3 -m py_compile patch_transport_security.py patch_agent_identity.py patch_entity_fields.py patch_content_guard.py patch_queue_backpressure.py patch_episode_uuids.py patch_serial_ingest.py brain/patch_bearer.py brain/whelk_bearer.py brain/test/fake_openai.py brain/test/mcp_probe.py
+
+      - name: Syntax-check the brain scripts
+        run: bash -n brain/start.sh brain/test/smoke.sh
 
   build:
     name: Build MCP image
@@ -43,3 +46,27 @@ jobs:
       # points in the current upstream image (they exit non-zero by design).
       - name: docker build
         run: docker build -t commonplace-mcp:ci .
+
+  brain:
+    name: Build and smoke-test the brain image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7 # consider pinning to a commit SHA
+
+      # The single-container image Whelk Server runs as its `brain` product. Builds it
+      # (fails if any patch anchor drifted), then runs it read-only against a fake
+      # OpenAI-compatible server on an --internal network: bearer gate, the MCP verbs,
+      # get_episodes(uuids), group isolation, restart durability, and a packet capture
+      # proving no egress except WHELK_SERVER_URL. Nothing is published.
+      - name: docker build
+        run: docker build -f brain/Dockerfile -t commonplace-brain:ci .
+
+      - name: Smoke test
+        run: BRAIN_SMOKE_LOGS=${{ runner.temp }}/brain-smoke brain/test/smoke.sh commonplace-brain:ci
+
+      - name: Keep the logs of a failed smoke test
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: brain-smoke
+          path: ${{ runner.temp }}/brain-smoke

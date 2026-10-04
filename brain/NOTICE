@@ -1,0 +1,39 @@
+commonplace brain image — third-party notices
+
+This image is built by brain/Dockerfile in https://github.com/itsmeduncan/commonplace
+from the upstream image zepai/knowledge-graph-mcp (combined FalkorDB + Graphiti MCP),
+pinned by digest. It is distributed under several licenses. The main components:
+
+commonplace (the patches, brain/config.yaml, brain/start.sh, brain/whelk_bearer.py)
+  License: MIT
+  Source:  https://github.com/itsmeduncan/commonplace
+
+Graphiti and the Graphiti MCP server (graphiti-core 0.30.1, mcp-server 1.1.0)
+  Copyright Zep Software, Inc.
+  License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+  Source:  https://github.com/getzep/graphiti (revision 11538f6d45561bcce9a4400b374fb2dc533dccb6)
+  Modified: yes. The build applies patch_transport_security.py, patch_episode_uuids.py,
+  patch_serial_ingest.py and brain/patch_bearer.py to the server source; each patch
+  file states what it changes.
+
+FalkorDB (the graph module, /var/lib/falkordb/bin/falkordb.so, 4.20.4)
+  Copyright FalkorDB Ltd.
+  License: Server Side Public License, version 1 (SSPLv1)
+           https://www.mongodb.com/legal/licensing/server-side-public-license
+  Source:  https://github.com/FalkorDB/FalkorDB
+  Modified: no.
+
+Redis (redis-server and redis-cli 8.6.3, the host process for FalkorDB)
+  Copyright Redis Ltd.
+  License: tri-licensed, at the user's choice: Redis Source Available License v2
+           (RSALv2), SSPLv1, or GNU AGPL v3
+  Source:  https://github.com/redis/redis
+  Modified: no.
+
+Python runtime and libraries (Debian python3 and the packages in /app/mcp/.venv)
+  Each package carries its own license in its *.dist-info directory under
+  /app/mcp/.venv/lib/python3.13/site-packages. The Debian base packages carry theirs
+  under /usr/share/doc.
+
+The image removes the anthropic Python package, the FalkorDB browser UI, the node
+binary that served it and the sfw build tool; none of them ships.

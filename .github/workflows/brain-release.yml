@@ -1,0 +1,65 @@
+name: Brain release
+
+# Publishes the Whelk brain image when a `brain-v*` tag is pushed, and at no
+# other time. It builds the image, runs the same smoke test as CI, pushes it to
+# ghcr.io/getwhelk/brain under the tag, and writes the digest to the job
+# summary. Whelk's docs/brain.md pins the image by that digest.
+#
+# Needs the repository secret GHCR_TOKEN: a token with packages:write on the
+# getwhelk organization. GITHUB_TOKEN cannot publish there, because this
+# repository belongs to another owner.
+
+on:
+  push:
+    tags: ['brain-v*']
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build, smoke-test and publish the brain image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: docker build
+        run: docker build -f brain/Dockerfile -t commonplace-brain:release .
+
+      - name: Smoke test
+        run: BRAIN_SMOKE_LOGS=${{ runner.temp }}/brain-smoke brain/test/smoke.sh commonplace-brain:release
+
+      - name: Keep the logs of a failed smoke test
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: brain-smoke
+          path: ${{ runner.temp }}/brain-smoke
+
+      - name: Refuse a missing publish token
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          if [ -z "$GHCR_TOKEN" ]; then
+            echo "::error::GHCR_TOKEN is not set. Add a token with packages:write on getwhelk as the repository secret GHCR_TOKEN, then push the tag again."
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          image="ghcr.io/getwhelk/brain:${TAG#brain-v}"
+          docker tag commonplace-brain:release "$image"
+          docker push "$image"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
+          {
+            echo "## Published"
+            echo
+            echo "\`$digest\`"
+            echo
+            echo "Pin this digest in Whelk's docs/brain.md manifest."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "published $digest"

@@ -1,0 +1,51 @@
+# commonplace brain — the Whelk Server org brain (one container: Graphiti MCP + FalkorDB)
+#
+# Whelk Server runs this image as the product named `brain` with `reach_server`, and
+# writes WHELK_SERVER_URL and WHELK_SERVER_TOKEN into the container's environment.
+# Every model call goes to the operator's own Whelk Server:
+#   extraction  -> ${WHELK_SERVER_URL}/v1/chat/completions   (model WHELK_BRAIN_MODEL)
+#   embeddings  -> ${WHELK_SERVER_URL}/v1/embeddings         (model WHELK_BRAIN_EMBED_MODEL)
+# The token is the API key for both. There is no other provider block, so there is no
+# path to a hosted model API. A non-OpenAI api_url makes the server select its
+# OpenAIGenericClient (Chat Completions + json_schema), and the reranker the server
+# builds from this same provider block points at the same URL.
+
+server:
+  transport: "http"        # the only transport the bearer gate serves (brain/patch_bearer.py)
+  host: "0.0.0.0"
+  port: 8000               # FastMCP path /mcp/ (trailing slash)
+
+llm:
+  provider: "openai"
+  model: ${WHELK_BRAIN_MODEL}
+  max_tokens: 4096
+  temperature: 0.0
+  structured_output_mode: prompt
+  providers:
+    openai:
+      api_key: ${WHELK_SERVER_TOKEN}
+      api_url: ${WHELK_SERVER_URL}/v1
+
+embedder:
+  provider: "openai"
+  model: ${WHELK_BRAIN_EMBED_MODEL}
+  dimensions: ${WHELK_BRAIN_EMBED_DIMENSIONS:768}   # nomic-embed-text is 768; set to match your model
+  providers:
+    openai:
+      api_key: ${WHELK_SERVER_TOKEN}
+      api_url: ${WHELK_SERVER_URL}/v1
+
+database:
+  provider: "falkordb"
+  providers:
+    falkordb:
+      uri: "redis://127.0.0.1:6379"    # in-container only; FalkorDB binds loopback
+      password: ""
+      database: "whelk"
+
+graphiti:
+  # Whelk Server names a group on every call (one group per access label, e.g.
+  # whelk-team). FalkorDB keeps each group in its own graph. This default applies
+  # only to a call that names no group.
+  group_id: "whelk"
+  user_id: "whelk-server"
