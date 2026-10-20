@@ -11,7 +11,7 @@
 # Pinned by digest (the multi-arch index) — `:latest` moves. This is upstream revision
 # 11538f6 / mcp-v1.1.0 / graphiti-core 0.30.1, the same revision the `:standalone` pin in
 # ../Dockerfile carries, so the shared patches apply to both.
-FROM zepai/knowledge-graph-mcp:latest@sha256:a2536b6d59b4afb359a13aeaa4a9d2f4db195af14231168efda6a3d166228956
+FROM zepai/knowledge-graph-mcp:latest@sha256:873abc79dbb36c98df3b5d6c59af598fcd53bd31c6629ad0ab1efb85ddd92c29
 
 # 1) No hosted-model path: drop the Anthropic SDK the upstream image ships. Drop the
 #    FalkorDB browser UI (a second listening port this product never opens), the node
